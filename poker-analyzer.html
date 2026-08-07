@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Poker Hand Analyzer</title>
+<style>
+:root{--bg:#030604;--panel:#082d19;--panel2:#0b4525;--gold:#f7c654;--gold2:#fff0ad;--text:#fff8df;--muted:#cbbb91;--line:#8a6b2f66;--green:#45df82;--blue:#6ec5ff}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,system-ui,sans-serif;color:var(--text);background:radial-gradient(circle at 10% 10%,#35206066,transparent 24%),radial-gradient(circle at 90% 10%,#8a370055,transparent 23%),linear-gradient(145deg,#020302,#07130c 50%,#020302)}
+button,input,select{font:inherit}button{cursor:pointer}.app{width:min(1240px,calc(100% - 20px));margin:auto;padding:18px 0 50px}.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:22px;box-shadow:0 22px 70px #0008}.pad{padding:18px}
+.hero{text-align:center;margin-bottom:15px;padding:20px}.hero h1{font:700 clamp(42px,7vw,78px) Georgia,serif;color:var(--gold2);margin:3px 0;text-shadow:0 2px #5b3000}.hero p{color:#e8d9ad}.suits{color:var(--gold);letter-spacing:.35em;font-weight:900}
+.players{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;margin-bottom:15px}.player{text-align:center}.player h2{font:700 29px Georgia,serif;margin:0 0 10px}.vs{font:700 36px Georgia,serif;color:var(--gold)}
+.name{width:min(300px,100%);padding:9px 11px;border-radius:11px;border:1px solid #ffffff22;background:#0005;color:var(--text);text-align:center;font-weight:800;margin-bottom:10px}
+.cards{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}.slot,.card{width:76px;height:106px;border-radius:13px;border:1px solid #ffffff2d;display:grid;place-items:center;position:relative}.slot{background:#ffffff0c;color:var(--muted);font-size:29px}.card{background:#fffdf4;color:#171717;box-shadow:0 7px 20px #0005}.red{color:#c82828!important}.rank{position:absolute;left:8px;top:5px;font:700 24px Georgia,serif}.suit{font-size:38px}.x{position:absolute;right:4px;top:3px;width:20px;height:20px;border:0;border-radius:50%;background:#0002;color:inherit;padding:0}
+.board{margin-bottom:15px}.head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:13px}.head h2,.head h3{margin:0}.streets{display:grid;grid-template-columns:3fr 1fr 1fr;gap:12px}.street{padding:12px;border-radius:16px;background:#0003;border:1px solid #ffffff14}.street b{display:block;text-align:center;color:var(--muted);font-size:11px;letter-spacing:.1em;margin-bottom:9px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:12px;padding:9px 13px;font-weight:900;background:linear-gradient(var(--gold2),var(--gold));color:#2b1700}.btn.sec{background:#ffffff12;border:1px solid #ffffff22;color:var(--text)}.btn.green{background:linear-gradient(#7fffb2,#26d56d);color:#03200b}.btn.redb{background:#ff51511c;border:1px solid #ff6a6a55;color:#ffd9d5}.small{padding:7px 9px;font-size:12px}
+.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:15px}.sub{font-size:12px;color:var(--muted);font-weight:900;letter-spacing:.08em}.eqrow{margin:13px 0}.eqtop{display:flex;justify-content:space-between;font-weight:900}.eqval{font:700 28px Georgia,serif;color:var(--gold2)}.bar{height:17px;border-radius:999px;background:#0006;overflow:hidden;margin-top:6px;border:1px solid #ffffff14}.bar span{display:block;height:100%;background:linear-gradient(90deg,#d67b27,#ffd468,#51e393)}.bar.blue span{background:linear-gradient(90deg,#587be0,#69baf8,#78ddff)}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.pill{padding:6px 9px;border-radius:999px;background:#0004;border:1px solid #ffffff18;font-size:12px;font-weight:850}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.field{display:grid;gap:5px}.field label{font-size:10px;color:var(--muted);font-weight:900;text-transform:uppercase}.field select{padding:9px;border-radius:10px;background:#0005;color:var(--text);border:1px solid #ffffff1f}
+.progressbox{display:none;margin-top:10px}.progressbox.show{display:block}.progress{height:9px;border-radius:999px;background:#0006;overflow:hidden}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--green))}.progtext{font-size:11px;color:var(--muted);margin-top:4px}
+.hand{padding:12px;border-radius:15px;background:#0003;border:1px solid #ffffff14;margin-bottom:9px}.hand strong{display:block;color:var(--gold2);font-size:17px}.best{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.mini{padding:4px 7px;border-radius:7px;background:#fffdf4;color:#171717;font:700 15px Georgia,serif}.draws{margin-top:7px;color:#e9dcb8;font-size:12px;line-height:1.45}.result{text-align:center;padding:16px;border-radius:17px;background:#f6c65418;border:1px solid #f6c65455}.result h2{font:700 32px Georgia,serif;color:var(--gold2);margin:0 0 4px}
+.history{margin-top:15px}.hist{width:100%;border-collapse:collapse}.hist th,.hist td{padding:9px;border-bottom:1px solid #ffffff15;text-align:center}.hist th{font-size:10px;color:var(--muted);text-transform:uppercase}canvas{width:100%;height:250px;background:#0003;border-radius:16px;border:1px solid #ffffff14}
+.pickerbg{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;padding:16px;z-index:20}.pickerbg.show{display:flex}.picker{width:min(850px,100%);max-height:90vh;overflow:auto;padding:16px;border-radius:20px;background:linear-gradient(#0b3a21,#04150c);border:1px solid var(--line)}.pickgrid{display:grid;grid-template-columns:repeat(13,1fr);gap:5px}.pick{min-height:56px;border-radius:9px;border:1px solid #0002;background:#fffdf4;color:#171717;font:700 16px Georgia,serif}.used{opacity:.2;pointer-events:none}.status{font-size:11px;color:var(--muted);margin-top:8px}
+@media(max-width:860px){.players,.grid{grid-template-columns:1fr}.vs{font-size:25px}.streets{grid-template-columns:1fr}.pickgrid{grid-template-columns:repeat(7,1fr)}}@media(max-width:500px){.slot,.card{width:62px;height:88px}.controls{grid-template-columns:1fr}.pickgrid{grid-template-columns:repeat(4,1fr)}}
+
+.back-home{
+  position:fixed;left:14px;top:14px;z-index:15;
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 12px;border-radius:999px;
+  text-decoration:none;font-size:12px;font-weight:900;
+  color:var(--gold2);background:rgba(3,22,11,.88);
+  border:1px solid rgba(247,198,84,.34);
+  box-shadow:0 8px 24px rgba(0,0,0,.32);
+  backdrop-filter:blur(8px);
+}
+.back-home:hover{border-color:rgba(255,228,140,.7);transform:translateY(-1px)}
+@media(max-width:520px){.back-home{position:static;margin:10px 0 0 10px}}
+
+</style>
+</head>
+<body>
+<a class="back-home" href="./">← Leaderboard</a>
+<div class="app">
+<header class="panel hero"><div class="suits">♠ ♥ ♣ ♦</div><h1>POKER HAND ANALYZER</h1><p>Texas Hold’em Heads-Up · Equity · Showdown</p></header>
+
+<section class="panel pad players">
+<div class="player"><h2>PLAYER 1</h2><input id="p1name" class="name" value="Player 1"><div id="p1" class="cards"></div></div>
+<div class="vs">VS</div>
+<div class="player"><h2>PLAYER 2</h2><input id="p2name" class="name" value="Player 2"><div id="p2" class="cards"></div></div>
+</section>
+
+<section class="panel pad board">
+<div class="head"><h2>BOARD</h2><div class="actions"><button class="btn sec small" onclick="randomHand()">🎲 RANDOM</button><button class="btn sec small" onclick="clearBoard()">CLEAR BOARD</button><button class="btn redb small" onclick="resetAll()">RESET</button></div></div>
+<div class="streets">
+<div class="street"><b>FLOP</b><div id="flop" class="cards"></div></div>
+<div class="street"><b>TURN</b><div id="turn" class="cards"></div></div>
+<div class="street"><b>RIVER</b><div id="river" class="cards"></div></div>
+</div>
+</section>
+
+<div class="grid">
+<section class="panel pad">
+<div class="head"><div><div id="streetLabel" class="sub">PREFLOP EQUITY</div><h2>Шанси на перемогу</h2></div><span id="calcStatus" class="pill">Очікую карти</span></div>
+<div class="eqrow"><div class="eqtop"><span id="n1">Player 1</span><span id="e1" class="eqval">—</span></div><div class="bar"><span id="b1" style="width:0"></span></div></div>
+<div class="eqrow"><div class="eqtop"><span id="n2">Player 2</span><span id="e2" class="eqval">—</span></div><div class="bar blue"><span id="b2" style="width:0"></span></div></div>
+<div class="meta"><span class="pill">Tie: <b id="tie">—</b></span><span class="pill">P1 win: <b id="w1">—</b></span><span class="pill">P2 win: <b id="w2">—</b></span><span class="pill">Combinations: <b id="comb">—</b></span></div>
+<div class="controls"><div class="field"><label>Preflop mode</label><select id="mode"><option value="fast">FAST · Monte Carlo</option><option value="exact">EXACT · Exhaustive</option></select></div><div class="field"><label>Monte Carlo simulations</label><select id="mc"><option value="5000">QUICK · 5 000</option><option value="10000" selected>FAST · 10 000</option><option value="25000">BALANCED · 25 000</option><option value="50000">PRECISE · 50 000</option></select></div></div>
+<div class="actions" style="margin-top:10px"><button class="btn green" onclick="calculate()">CALCULATE</button><button class="btn sec" onclick="cancelCalc()">Cancel</button></div>
+<div id="progressbox" class="progressbox"><div class="progress"><span id="prog"></span></div><div id="progtext" class="progtext">0%</div></div>
+<div id="speedInfo" class="status">FAST preflop оптимізовано: прямий 7-card evaluator + Web Worker.</div><div id="tests" class="status"></div>
+</section>
+
+<section class="panel pad"><div class="head"><h2>Поточні руки</h2><span class="pill">best 5 of 7</span></div><div id="hands"></div><div id="final"></div></section>
+</div>
+
+<section class="panel pad history">
+<div class="head"><h2>Equity Evolution</h2><span id="swing" class="pill">BIGGEST SWING: —</span></div>
+<canvas id="chart" width="1100" height="250"></canvas>
+<div style="overflow:auto;margin-top:10px"><table class="hist"><thead><tr><th>Street</th><th id="hp1">Player 1</th><th id="hp2">Player 2</th><th>Tie</th><th>Swing</th></tr></thead><tbody id="histbody"></tbody></table></div>
+</section>
+</div>
+
+<div id="pickerbg" class="pickerbg" onclick="if(event.target.id==='pickerbg')hidePicker()"><div class="picker" onclick="event.stopPropagation()"><div class="head"><div><h2 style="margin:0">Оберіть карту</h2><div id="picktarget" class="sub">—</div></div><button class="btn sec small" onclick="hidePicker()">Закрити</button></div><div id="pickgrid" class="pickgrid"></div></div></div>
+
+<script>
+const R=['2','3','4','5','6','7','8','9','T','J','Q','K','A'],S=['s','h','d','c'],SYM={s:'♠',h:'♥',d:'♦',c:'♣'},RED=new Set(['h','d']),CATS=['High Card','One Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush'];
+let state={p1:[null,null],p2:[null,null],board:[null,null,null,null,null]},hist={},worker=null,pickPath=null;
+const p1=document.getElementById('p1'),p2=document.getElementById('p2'),flop=document.getElementById('flop'),turn=document.getElementById('turn'),river=document.getElementById('river'),picktarget=document.getElementById('picktarget'),pickgrid=document.getElementById('pickgrid'),pickerbg=document.getElementById('pickerbg'),progressbox=document.getElementById('progressbox'),calcStatus=document.getElementById('calcStatus'),prog=document.getElementById('prog'),progtext=document.getElementById('progtext'),mode=document.getElementById('mode'),mc=document.getElementById('mc'),e1=document.getElementById('e1'),e2=document.getElementById('e2'),tie=document.getElementById('tie'),w1=document.getElementById('w1'),w2=document.getElementById('w2'),comb=document.getElementById('comb'),b1=document.getElementById('b1'),b2=document.getElementById('b2'),streetLabel=document.getElementById('streetLabel'),hands=document.getElementById('hands'),final=document.getElementById('final'),hp1=document.getElementById('hp1'),hp2=document.getElementById('hp2'),histbody=document.getElementById('histbody'),swing=document.getElementById('swing'),chart=document.getElementById('chart'),tests=document.getElementById('tests'),p1name=document.getElementById('p1name'),p2name=document.getElementById('p2name');
+const deck=()=>S.flatMap(s=>R.map(r=>r+s)),pc=c=>({r:c[0],s:c[1],v:R.indexOf(c[0])+2}),pct=x=>(x*100).toFixed(1)+'%',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const n1=()=>document.getElementById('p1name').value||'Player 1',n2=()=>document.getElementById('p2name').value||'Player 2';
+function rankName(v){return({14:'Ace',13:'King',12:'Queen',11:'Jack',10:'Ten',9:'Nine',8:'Eight',7:'Seven',6:'Six',5:'Five',4:'Four',3:'Three',2:'Two'})[v]||v}
+function rank5(cs){const vs=cs.map(c=>pc(c).v).sort((a,b)=>b-a),ss=cs.map(c=>pc(c).s),ct={};vs.forEach(v=>ct[v]=(ct[v]||0)+1);const g=Object.entries(ct).map(([v,n])=>({v:+v,n})).sort((a,b)=>b.n-a.n||b.v-a.v),u=[...new Set(vs)].sort((a,b)=>b-a),seq=u.includes(14)?[...u,1]:u;let sh=0;for(let i=0;i<=seq.length-5;i++)if(seq[i]-seq[i+4]===4){sh=seq[i];break}const fl=ss.every(s=>s===ss[0]);if(fl&&sh)return{c:8,t:[sh]};if(g[0].n===4)return{c:7,t:[g[0].v,g[1].v]};if(g[0].n===3&&g[1].n===2)return{c:6,t:[g[0].v,g[1].v]};if(fl)return{c:5,t:vs};if(sh)return{c:4,t:[sh]};if(g[0].n===3)return{c:3,t:[g[0].v,...g.filter(x=>x.n===1).map(x=>x.v).sort((a,b)=>b-a)]};const p=g.filter(x=>x.n===2).sort((a,b)=>b.v-a.v);if(p.length>=2)return{c:2,t:[p[0].v,p[1].v,g.filter(x=>x.n===1).map(x=>x.v).sort((a,b)=>b-a)[0]]};if(p.length===1)return{c:1,t:[p[0].v,...g.filter(x=>x.n===1).map(x=>x.v).sort((a,b)=>b-a)]};return{c:0,t:vs}}
+function cmp(a,b){if(a.c!==b.c)return a.c-b.c;for(let i=0;i<Math.max(a.t.length,b.t.length);i++){const d=(a.t[i]||0)-(b.t[i]||0);if(d)return d}return 0}
+function comb5(a){const o=[];for(let i=0;i<a.length-4;i++)for(let j=i+1;j<a.length-3;j++)for(let k=j+1;k<a.length-2;k++)for(let l=k+1;l<a.length-1;l++)for(let m=l+1;m<a.length;m++)o.push([a[i],a[j],a[k],a[l],a[m]]);return o}
+function evalHand(cs){if(cs.length<5)return null;let best=null,five=null;for(const f of comb5(cs)){const r=rank5(f);if(!best||cmp(r,best)>0){best=r;five=f}}let d=CATS[best.c],h=best.t[0];if(best.c===8&&h===14)d='Royal Flush';else if(best.c===8)d=`Straight Flush — ${rankName(h)} high`;else if(best.c===7)d=`Four of a Kind — ${rankName(best.t[0])}s`;else if(best.c===6)d=`Full House — ${rankName(best.t[0])}s full of ${rankName(best.t[1])}s`;else if(best.c===5)d=`Flush — ${rankName(h)} high`;else if(best.c===4)d=`Straight — ${rankName(h)} high`;else if(best.c===3)d=`Three of a Kind — ${rankName(best.t[0])}s`;else if(best.c===2)d=`Two Pair — ${rankName(best.t[0])}s and ${rankName(best.t[1])}s`;else if(best.c===1)d=`One Pair — ${rankName(best.t[0])}s`;else d=`High Card — ${rankName(best.t[0])}`;return{rank:best.c,category:CATS[best.c],description:d,bestFive:five,c:best.c,t:best.t}}
+function used(){return[...state.p1,...state.p2,...state.board].filter(Boolean)}function street(){const n=state.board.filter(Boolean).length;return n===5?'river':n===4?'turn':n===3?'flop':'preflop'}
+function renderCard(c,path){if(!c)return`<button class="slot" onclick="openPicker('${path}')">+</button>`;const x=pc(c);return`<div class="card ${RED.has(x.s)?'red':''}" onclick="openPicker('${path}')"><span class="rank">${x.r}</span><span class="suit">${SYM[x.s]}</span><button class="x" onclick="event.stopPropagation();clearPath('${path}')">×</button></div>`}
+function renderSlots(){p1.innerHTML=[0,1].map(i=>renderCard(state.p1[i],`p1.${i}`)).join('');p2.innerHTML=[0,1].map(i=>renderCard(state.p2[i],`p2.${i}`)).join('');flop.innerHTML=[0,1,2].map(i=>renderCard(state.board[i],`board.${i}`)).join('');turn.innerHTML=renderCard(state.board[3],'board.3');river.innerHTML=renderCard(state.board[4],'board.4')}
+function pathGet(p){const[a,i]=p.split('.');return state[a][+i]}function pathSet(p,v){const[a,i]=p.split('.');state[a][+i]=v}
+function clearPath(p){pathSet(p,null);if(p==='board.0'||p==='board.1'||p==='board.2'){state.board[3]=state.board[4]=null}if(p==='board.3')state.board[4]=null;changed()}
+function openPicker(p){const[a,i]=p.split('.');if(a==='board'&&+i===3&&state.board.slice(0,3).some(x=>!x))return alert('Спочатку введіть flop.');if(a==='board'&&+i===4&&!state.board[3])return alert('Спочатку введіть turn.');pickPath=p;picktarget.textContent=p;const u=new Set(used().filter(c=>c!==pathGet(p)));pickgrid.innerHTML=S.flatMap(s=>R.map(r=>{const c=r+s;return`<button class="pick ${RED.has(s)?'red':''} ${u.has(c)?'used':''}" onclick="choose('${c}')">${r}${SYM[s]}</button>`})).join('');pickerbg.classList.add('show')}
+function choose(c){if(used().includes(c)&&pathGet(pickPath)!==c)return;pathSet(pickPath,c);hidePicker();changed()}function hidePicker(){pickerbg.classList.remove('show')}
+function changed(){cancelCalc();renderSlots();renderHands();const bn=state.board.filter(Boolean).length;if(state.p1.every(Boolean)&&state.p2.every(Boolean)&&[0,3,4,5].includes(bn))calculate();else clearEq()}
+function clearEq(){['e1','e2','tie','w1','w2','comb'].forEach(id=>document.getElementById(id).textContent='—');b1.style.width=b2.style.width='0';calcStatus.textContent='Очікую карти'}
+function calculate(){if(!state.p1.every(Boolean)||!state.p2.every(Boolean))return alert('Введіть 2 карти кожного гравця.');const bn=state.board.filter(Boolean).length;if(![0,3,4,5].includes(bn))return alert('Board: 0, 3, 4 або 5 карт.');const st=street();if(st==='river')return riverResult();const payload={p1:state.p1,p2:state.p2,board:state.board.filter(Boolean),street:st,mode:st==='preflop'?mode.value:'exact',iterations:+mc.value,maxMs:25000};runWorker(payload)}
+function cancelCalc(){if(worker){worker.terminate();worker=null}progressbox.classList.remove('show')}
+function runWorker(payload){cancelCalc();worker=new Worker(URL.createObjectURL(new Blob([`(${workerMain.toString()})()`],{type:'text/javascript'})));progressbox.classList.add('show');calcStatus.textContent='Розрахунок…';worker.onmessage=e=>{const m=e.data;if(m.type==='p'){prog.style.width=m.v+'%';progtext.textContent=m.v.toFixed(1)+'%'}else if(m.type==='done'){worker=null;progressbox.classList.remove('show');applyEq(m.r,payload.street)}else{console.error(m);worker=null;progressbox.classList.remove('show')}};worker.postMessage(payload)}
+function workerMain(){
+  const R=['2','3','4','5','6','7','8','9','T','J','Q','K','A'], S=['s','h','d','c'];
+  const rankMap={2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,T:10,J:11,Q:12,K:13,A:14};
+  const suitMap={s:0,h:1,d:2,c:3};
+  const enc=c=>suitMap[c[1]]*13+(rankMap[c[0]]-2);
+  const rankOf=x=>(x%13)+2, suitOf=x=>(x/13)|0;
+  const fullDeck=()=>Array.from({length:52},(_,i)=>i);
+  function straightHighFromCounts(cnt){
+    for(let h=14;h>=6;h--) if(cnt[h]&&cnt[h-1]&&cnt[h-2]&&cnt[h-3]&&cnt[h-4]) return h;
+    if(cnt[14]&&cnt[5]&&cnt[4]&&cnt[3]&&cnt[2]) return 5;
+    return 0;
+  }
+  function eval7(cards){
+    const cnt=new Uint8Array(15), sc=new Uint8Array(4);
+    const sr=[[],[],[],[]];
+    for(let i=0;i<7;i++){const x=cards[i],r=rankOf(x),s=suitOf(x);cnt[r]++;sc[s]++;sr[s].push(r)}
+    // Straight flush
+    for(let s=0;s<4;s++) if(sc[s]>=5){
+      const c=new Uint8Array(15);for(const r of sr[s])c[r]=1;const sh=straightHighFromCounts(c);if(sh)return[8,sh,0,0,0,0];
+    }
+    // Quads
+    for(let r=14;r>=2;r--) if(cnt[r]===4){let k=14;while(k>=2&&(k===r||!cnt[k]))k--;return[7,r,k,0,0,0]}
+    // Full house
+    let trip1=0,trip2=0;for(let r=14;r>=2;r--)if(cnt[r]>=3){if(!trip1)trip1=r;else if(!trip2)trip2=r}
+    if(trip1){let pair=trip2;for(let r=14;r>=2&&!pair;r--)if(r!==trip1&&cnt[r]>=2)pair=r;if(pair)return[6,trip1,pair,0,0,0]}
+    // Flush
+    for(let s=0;s<4;s++) if(sc[s]>=5){const a=sr[s].sort((a,b)=>b-a);return[5,a[0],a[1],a[2],a[3],a[4]]}
+    // Straight
+    const sh=straightHighFromCounts(cnt);if(sh)return[4,sh,0,0,0,0];
+    // Trips
+    if(trip1){const ks=[];for(let r=14;r>=2&&ks.length<2;r--)if(r!==trip1&&cnt[r])ks.push(r);return[3,trip1,ks[0],ks[1],0,0]}
+    // Pairs
+    const pairs=[];for(let r=14;r>=2;r--)if(cnt[r]>=2)pairs.push(r);
+    if(pairs.length>=2){let k=14;while(k>=2&&(k===pairs[0]||k===pairs[1]||!cnt[k]))k--;return[2,pairs[0],pairs[1],k,0,0]}
+    if(pairs.length===1){const ks=[];for(let r=14;r>=2&&ks.length<3;r--)if(r!==pairs[0]&&cnt[r])ks.push(r);return[1,pairs[0],ks[0],ks[1],ks[2],0]}
+    // High card
+    const hi=[];for(let r=14;r>=2&&hi.length<5;r--)if(cnt[r])hi.push(r);return[0,hi[0],hi[1],hi[2],hi[3],hi[4]];
+  }
+  function cmp(a,b){for(let i=0;i<6;i++){const d=(a[i]||0)-(b[i]||0);if(d)return d}return 0}
+  function result(p1,p2,b){
+    return cmp(eval7([p1[0],p1[1],b[0],b[1],b[2],b[3],b[4]]),eval7([p2[0],p2[1],b[0],b[1],b[2],b[3],b[4]]));
+  }
+  onmessage=e=>{
+    try{
+      const {p1:sp1,p2:sp2,board:sboard,street,mode,iterations,maxMs=25000}=e.data;
+      const p1=sp1.map(enc),p2=sp2.map(enc),board=sboard.map(enc),known=new Set([...p1,...p2,...board]),rem=fullDeck().filter(x=>!known.has(x));
+      let w1=0,w2=0,tie=0,total=0,last=0,timedOut=false;const started=performance.now();
+      const add=x=>{total++;if(x>0)w1++;else if(x<0)w2++;else tie++};
+      if(street==='preflop'&&mode==='fast'){
+        const d=rem.slice();
+        for(let i=0;i<iterations;i++){
+          // Partial Fisher-Yates: only the first five cards are needed.
+          for(let k=0;k<5;k++){const j=k+Math.floor(Math.random()*(d.length-k));const z=d[k];d[k]=d[j];d[j]=z}
+          add(result(p1,p2,d));
+          if((i&511)===0){
+            const elapsed=performance.now()-started;
+            postMessage({type:'p',v:i/iterations*100});
+            if(elapsed>=maxMs){timedOut=true;break}
+          }
+        }
+      }else if(street==='preflop'){
+        const n=rem.length,ex=n*(n-1)*(n-2)*(n-3)*(n-4)/120;let q=0;
+        const b=[0,0,0,0,0];
+        for(let i=0;i<n-4;i++)for(let j=i+1;j<n-3;j++)for(let k=j+1;k<n-2;k++)for(let l=k+1;l<n-1;l++)for(let m=l+1;m<n;m++){
+          b[0]=rem[i];b[1]=rem[j];b[2]=rem[k];b[3]=rem[l];b[4]=rem[m];add(result(p1,p2,b));q++;
+          if((q&8191)===0)postMessage({type:'p',v:q/ex*100});
+        }
+      }else if(street==='flop'){
+        let q=0,ex=rem.length*(rem.length-1)/2;const b=[board[0],board[1],board[2],0,0];
+        for(let i=0;i<rem.length-1;i++)for(let j=i+1;j<rem.length;j++){b[3]=rem[i];b[4]=rem[j];add(result(p1,p2,b));q++;if((q&63)===0)postMessage({type:'p',v:q/ex*100})}
+      }else if(street==='turn'){
+        const b=[board[0],board[1],board[2],board[3],0];
+        for(let i=0;i<rem.length;i++){b[4]=rem[i];add(result(p1,p2,b));if((i&7)===0)postMessage({type:'p',v:(i+1)/rem.length*100})}
+      }
+      const elapsedMs=performance.now()-started;
+      postMessage({type:'done',r:{player1Win:w1/total,player2Win:w2/total,tie:tie/total,player1Equity:(w1+tie/2)/total,player2Equity:(w2+tie/2)/total,combinations:total,elapsedMs,timedOut,requestedIterations:iterations}});
+    }catch(err){postMessage({type:'error',error:String(err.stack||err)})}
+  }
+}
+function applyEq(r,st){document.getElementById('n1').textContent=n1();document.getElementById('n2').textContent=n2();e1.textContent=pct(r.player1Equity);e2.textContent=pct(r.player2Equity);tie.textContent=pct(r.tie);w1.textContent=pct(r.player1Win);w2.textContent=pct(r.player2Win);comb.textContent=r.combinations.toLocaleString('uk-UA');b1.style.width=r.player1Equity*100+'%';b2.style.width=r.player2Equity*100+'%';streetLabel.textContent=st.toUpperCase()+(st==='river'?' RESULT':' EQUITY');const secs=r.elapsedMs!=null?(r.elapsedMs/1000).toFixed(2)+' s':'';calcStatus.textContent=(st==='preflop'&&mode.value==='fast'?'FAST Monte Carlo':'Exact')+(secs?' · '+secs:'');if(st==='preflop'&&mode.value==='fast'){const n=Math.max(1,r.combinations),ci=1.96*Math.sqrt(.25/n)*100;speedInfo.textContent=`Виконано ${n.toLocaleString('uk-UA')} симуляцій за ${secs}. Орієнтовна максимальна 95% похибка: ±${ci.toFixed(1)} п.п.${r.timedOut?' Досягнуто ліміт 25 с.':''}`;}else if(secs){speedInfo.textContent=`Точний розрахунок: ${r.combinations.toLocaleString('uk-UA')} комбінацій за ${secs}.`;}hist[st]={...r};renderHist();renderHands()}
+function riverResult(){const b=state.board.filter(Boolean),h1=evalHand([...state.p1,...b]),h2=evalHand([...state.p2,...b]),c=cmp(h1,h2),r={player1Win:c>0?1:0,player2Win:c<0?1:0,tie:c===0?1:0,player1Equity:c>0?1:c===0?.5:0,player2Equity:c<0?1:c===0?.5:0,combinations:1};applyEq(r,'river')}
+function mini(c){const x=pc(c);return`<span class="mini ${RED.has(x.s)?'red':''}">${x.r}${SYM[x.s]}</span>`}
+function drawInfo(hole,board,current){if(board.length<3||board.length>=5)return{labels:[],outs:[]};const known=[...hole,...board],rem=deck().filter(c=>!known.includes(c)),outs=[];for(const c of rem){const h=evalHand([...known,c]);if(cmp(h,current)>0)outs.push(c)}const labels=[],all=known.map(pc),sc={s:0,h:0,d:0,c:0};all.forEach(x=>sc[x.s]++);if(Object.values(sc).some(n=>n===4))labels.push('Flush Draw');const vals=[...new Set(all.map(x=>x.v))];if(vals.includes(14))vals.push(1);let open=false,gut=false;for(let st=1;st<=10;st++){const seq=[st,st+1,st+2,st+3,st+4],have=seq.filter(v=>vals.includes(v));if(have.length===4){const miss=seq.find(v=>!vals.includes(v));(miss===st||miss===st+4)?open=true:gut=true}}if(open)labels.push('Open-ended Straight Draw');else if(gut)labels.push('Gutshot');const bh=Math.max(...board.map(c=>pc(c).v));if(hole.filter(c=>pc(c).v>bh).length===2)labels.push('Two Overcards');if(current.rank===2)labels.push('Full House Draw');if(current.rank===3)labels.push('Full House / Quads Draw');if(current.rank===6)labels.push('Four of a Kind Draw');return{labels:[...new Set(labels)],outs}}
+function handHtml(name,h,hole,b){const d=drawInfo(hole,b,h);return`<div class="hand"><strong>${esc(name)}</strong><div>${esc(h.description)}</div><div class="best">${h.bestFive.map(mini).join('')}</div><div class="draws">${d.labels.length?'<b>Draws:</b> '+d.labels.join(' · ')+'<br><b>Unique outs:</b> '+d.outs.length:'Draws: —'}</div></div>`}
+function renderHands(){const b=state.board.filter(Boolean);if(!state.p1.every(Boolean)||!state.p2.every(Boolean)||b.length<3){hands.innerHTML='<div class="hand">Введіть hole cards і flop.</div>';final.innerHTML='';return}const h1=evalHand([...state.p1,...b]),h2=evalHand([...state.p2,...b]);hands.innerHTML=handHtml(n1(),h1,state.p1,b)+handHtml(n2(),h2,state.p2,b);if(b.length===5){const c=cmp(h1,h2),win=c>0?n1():c<0?n2():null;final.innerHTML=`<div class="result"><h2>${win?'🏆 '+esc(win)+' WINS':'🤝 SPLIT POT'}</h2><div>${win?esc(c>0?h1.description:h2.description):'Рівні найкращі руки'}</div></div>`}else final.innerHTML=''}
+function renderHist(){hp1.textContent=n1();hp2.textContent=n2();let prev=null,big=null,rows='';for(const s of['preflop','flop','turn','river']){const h=hist[s];if(!h)continue;let sw='—';if(prev){const d=(h.player1Equity-prev.player1Equity)*100;sw=(d>=0?'+':'')+d.toFixed(1)+' pp';if(!big||Math.abs(d)>Math.abs(big.d))big={s,d}}rows+=`<tr><td>${s.toUpperCase()}</td><td>${pct(h.player1Equity)}</td><td>${pct(h.player2Equity)}</td><td>${pct(h.tie)}</td><td>${sw}</td></tr>`;prev=h}histbody.innerHTML=rows;swing.textContent='BIGGEST SWING: '+(big?big.s.toUpperCase()+' '+(big.d>=0?'+':'')+big.d.toFixed(1)+' pp':'—');drawChart()}
+function drawChart(){const c=chart,ctx=c.getContext('2d'),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);ctx.strokeStyle='#ffffff1c';ctx.fillStyle='#cbbb91';ctx.font='12px sans-serif';for(let y=0;y<=100;y+=25){const py=H-30-y*(H-50)/100;ctx.beginPath();ctx.moveTo(48,py);ctx.lineTo(W-18,py);ctx.stroke();ctx.fillText(y+'%',8,py+4)}const ss=['preflop','flop','turn','river'],xs=ss.map((s,i)=>48+i*(W-72)/3);ss.forEach((s,i)=>ctx.fillText(s.toUpperCase(),xs[i]-24,H-8));function line(k,col){const p=[];ss.forEach((s,i)=>hist[s]&&p.push([xs[i],H-30-hist[s][k]*(H-50)]));if(!p.length)return;ctx.strokeStyle=col;ctx.lineWidth=4;ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(...q):ctx.moveTo(...q));ctx.stroke();ctx.fillStyle=col;p.forEach(q=>{ctx.beginPath();ctx.arc(q[0],q[1],5,0,Math.PI*2);ctx.fill()})}line('player1Equity','#f7c654');line('player2Equity','#6ec5ff')}
+function randomHand(){const d=deck();for(let i=d.length-1;i;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]]}state={p1:d.slice(0,2),p2:d.slice(2,4),board:[null,null,null,null,null]};hist={};changed()}function clearBoard(){state.board=[null,null,null,null,null];hist=hist.preflop?{preflop:hist.preflop}:{};changed()}function resetAll(){cancelCalc();state={p1:[null,null],p2:[null,null],board:[null,null,null,null,null]};hist={};renderSlots();renderHands();renderHist();clearEq()}
+p1name.addEventListener('input',()=>{renderHands();renderHist()});p2name.addEventListener('input',()=>{renderHands();renderHist()});mode.addEventListener('change',()=>{if(street()==='preflop'&&state.p1.every(Boolean)&&state.p2.every(Boolean))calculate()});
+function selfTest(){const T=[];const t=(n,c)=>T.push([n,!!c]);t('Royal Flush',evalHand(['As','Ks','Qs','Js','Ts','2d','3c']).description==='Royal Flush');t('Wheel',evalHand(['As','2d','3c','4h','5s','Kd','Qd']).rank===4);const a=evalHand(['As','Ah','Kd','9c','7s','3d','2c']),b=evalHand(['Ac','Ad','Qd','9h','7c','3s','2d']);t('Kicker',cmp(a,b)>0);t('Full House',evalHand(['Ah','Ad','Ac','Ks','Kd','2c','3s']).rank===6);const x=evalHand(['As','Kd','Qh','Jc','Ts','2d','3d']),y=evalHand(['Ah','Kc','Qd','Js','Tc','2c','3c']);t('Split',cmp(x,y)===0);tests.textContent=`Self-test: ${T.filter(x=>x[1]).length}/${T.length} passed`+(T.every(x=>x[1])?' ✓':' ⚠')}
+renderSlots();renderHands();renderHist();selfTest();
+</script>
+</body>
+</html>

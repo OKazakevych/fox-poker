@@ -39,6 +39,52 @@
 
     .sync-status{position:fixed;left:16px;bottom:16px;z-index:31;max-width:min(380px,calc(100% - 32px));padding:10px 13px;border-radius:999px;border:1px solid rgba(255,198,75,.32);background:rgba(3,18,10,.86);color:#ffe8aa;font-size:12px;font-weight:900;box-shadow:0 10px 28px rgba(0,0,0,.38);backdrop-filter:blur(8px)}.sync-status.ok{border-color:rgba(46,229,122,.45);color:#bdfbd3}.sync-status.pending{border-color:rgba(255,198,75,.55);color:#ffe8aa}.sync-status.error{border-color:rgba(255,63,63,.55);color:#ffd4d0}.sync-status.local{border-color:rgba(255,255,255,.18);color:#cdbf93}
     @media(max-width:560px){.sync-status{left:10px;right:10px;bottom:10px;text-align:center;border-radius:16px}.toast{left:10px;right:10px;bottom:58px;text-align:center}}
+  
+    .analyzer-launch{
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      gap:14px;
+      align-items:center;
+      margin:0 0 16px;
+      padding:15px 18px;
+      border-radius:22px;
+      border:1px solid rgba(255,198,75,.36);
+      background:
+        radial-gradient(circle at 8% 50%,rgba(246,194,79,.15),transparent 28%),
+        linear-gradient(110deg,rgba(7,54,29,.96),rgba(4,24,13,.96));
+      box-shadow:0 16px 42px rgba(0,0,0,.32),0 0 26px rgba(246,194,79,.08);
+      text-decoration:none;
+      transition:.18s ease;
+    }
+    .analyzer-launch:hover{
+      transform:translateY(-2px);
+      border-color:rgba(255,225,135,.70);
+      box-shadow:0 20px 48px rgba(0,0,0,.38),0 0 34px rgba(246,194,79,.16);
+    }
+    .analyzer-launch-icon{
+      width:56px;height:56px;border-radius:18px;display:grid;place-items:center;
+      font-size:30px;color:#2b1600;
+      background:radial-gradient(circle at 35% 25%,#fff4bd,#f6c24f 60%,#9e5709);
+      box-shadow:0 0 22px rgba(246,194,79,.28);
+    }
+    .analyzer-launch-title{
+      display:block;font-family:Georgia,"Times New Roman",serif;
+      font-size:24px;font-weight:900;color:var(--gold2);
+    }
+    .analyzer-launch-copy{
+      display:block;margin-top:3px;color:#e9d8aa;font-size:13px;line-height:1.4;
+    }
+    .analyzer-launch-arrow{
+      font-size:30px;color:var(--gold);font-weight:900;
+    }
+    @media(max-width:560px){
+      .analyzer-launch{grid-template-columns:auto 1fr;padding:13px}
+      .analyzer-launch-arrow{display:none}
+      .analyzer-launch-icon{width:48px;height:48px;border-radius:15px;font-size:25px}
+      .analyzer-launch-title{font-size:20px}
+      .analyzer-launch-copy{font-size:12px}
+    }
+
   </style>
 </head>
 <body>
@@ -48,6 +94,16 @@
       <h1 id="pageTitle">Leaderboard</h1>
       <p class="subtitle motto">Кожної п’ятниці у клубі Кульгавої Лисиці відбувається гемблінг, якого не існує.</p>
     </header>
+
+    <a class="analyzer-launch" href="poker-analyzer.html" aria-label="Відкрити Poker Analyzer">
+      <span class="analyzer-launch-icon">♠</span>
+      <span>
+        <span class="analyzer-launch-title">Poker Analyzer</span>
+        <span class="analyzer-launch-copy">Розрахунок equity двох гравців: preflop → flop → turn → river</span>
+      </span>
+      <span class="analyzer-launch-arrow">→</span>
+    </a>
+
 
     <section class="summary">
       <div class="panel panel-pad"><div class="stats">
@@ -126,7 +182,7 @@
         <div class="tab-panel" id="playersTab">
           <form class="form" onsubmit="addPlayer(event)">
             <div class="two"><div class="field"><label>Нікнейм</label><input id="playerNickname" required placeholder="Nickname"></div><div class="field"><label>Колір</label><input id="playerColor" type="color" value="#f6c24f"></div></div>
-            <div class="field"><label>Аватар URL або data:image</label><input id="playerAvatar" placeholder="можна лишити порожнім — сайт сам згенерує стильний портрет"></div>
+            <div class="field"><label>Аватар URL або data:image</label><input id="playerAvatar" placeholder="можна лишити порожнім"></div>
             <div class="field"><label>Опис / стиль</label><input id="playerNote" placeholder="короткий опис гравця"></div>
             <button class="btn green" type="submit">Додати гравця</button>
           </form>
@@ -335,110 +391,14 @@ function applyMigrations(s){
 }
 function saveState(){ state.settings.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); if(cloudReady && cloudRef && !cloudApplying){ setSyncStatus('Онлайн · збереження…','pending'); cloudRef.set(state).then(()=>setSyncStatus('Онлайн · зміни збережено','ok')).catch(err=>{ console.error(err); setSyncStatus('Онлайн · помилка збереження','error'); }); } }
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2200); }
-function hashString(value){ let h=0; const s=String(value||''); for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))>>>0; } return h; }
-function avatarKey(value){ return String(value||'').trim().toLowerCase().replace(/\s+/g,''); }
-function avatarInitials(player){ return (player?.nickname||'?').trim().slice(0,2).toUpperCase(); }
-function svgToDataUri(svg){ return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`; }
-function generatedAvatarSvg(player){
-  const key = avatarKey(player?.nickname || player?.id || '');
-  if(key === 'по' || key === 'po'){
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#111417"/>
-          <stop offset="55%" stop-color="#f2f2f2"/>
-          <stop offset="100%" stop-color="#3b4148"/>
-        </linearGradient>
-        <linearGradient id="robe" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#ffffff"/>
-          <stop offset="100%" stop-color="#d9d9d9"/>
-        </linearGradient>
-        <linearGradient id="scroll" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#f4cd75"/>
-          <stop offset="100%" stop-color="#c58b24"/>
-        </linearGradient>
-      </defs>
-      <rect width="256" height="256" rx="28" fill="url(#bg)"/>
-      <circle cx="128" cy="92" r="48" fill="#f8f8f8"/>
-      <ellipse cx="92" cy="70" rx="18" ry="22" fill="#1c1f22"/>
-      <ellipse cx="164" cy="70" rx="18" ry="22" fill="#1c1f22"/>
-      <ellipse cx="110" cy="94" rx="13" ry="16" fill="#1f2327"/>
-      <ellipse cx="146" cy="94" rx="13" ry="16" fill="#1f2327"/>
-      <circle cx="114" cy="94" r="4.5" fill="#ffffff"/>
-      <circle cx="142" cy="94" r="4.5" fill="#ffffff"/>
-      <circle cx="114" cy="95" r="2.8" fill="#121212"/>
-      <circle cx="142" cy="95" r="2.8" fill="#121212"/>
-      <ellipse cx="128" cy="111" rx="10" ry="7" fill="#2a2d31"/>
-      <path d="M118 123 Q128 130 138 123" stroke="#e78c96" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <ellipse cx="100" cy="113" rx="8" ry="5" fill="#f1b5bb" opacity=".55"/>
-      <ellipse cx="156" cy="113" rx="8" ry="5" fill="#f1b5bb" opacity=".55"/>
-      <path d="M88 214 Q95 146 128 145 Q161 146 168 214" fill="url(#robe)"/>
-      <path d="M111 146 Q128 170 145 146" fill="none" stroke="#202428" stroke-width="10" stroke-linecap="round"/>
-      <rect x="145" y="154" width="64" height="22" rx="11" fill="url(#scroll)" transform="rotate(-12 145 154)"/>
-      <circle cx="151" cy="166" r="6" fill="#8f5c16"/>
-      <circle cx="201" cy="155" r="6" fill="#8f5c16"/>
-      <path d="M160 167 q9 -10 18 0 q-9 10 -18 0z" fill="none" stroke="#8f1f11" stroke-width="3"/>
-      <path d="M176 159 q5 -6 10 0 q-5 6 -10 0z" fill="none" stroke="#8f1f11" stroke-width="3"/>
-      <text x="128" y="236" text-anchor="middle" font-family="Georgia, serif" font-size="24" font-weight="700" fill="#f9f1cd">PO</text>
-    </svg>`;
-  }
-  const color = player?.color || '#f6c24f';
-  const seed = hashString((player?.nickname||'') + '|' + color);
-  const backgrounds = [
-    ['#1d2730','#0e5c4b'],
-    ['#2b1833','#0f4857'],
-    ['#3d1e12','#4d6a2b'],
-    ['#172233','#5a2d62'],
-    ['#182116','#71531c']
-  ];
-  const skins = ['#f2d0b1','#e8c29f','#d9a67f','#f4d8c0'];
-  const hairs = ['#1c1a18','#40281f','#6a3f22','#2a3140','#5d512d'];
-  const shirts = ['#d1a64b','#4fb0c6','#b764d9','#74c56a','#e57c68'];
-  const bg = backgrounds[seed % backgrounds.length];
-  const skin = skins[seed % skins.length];
-  const hair = hairs[seed % hairs.length];
-  const shirt = shirts[seed % shirts.length];
-  const initials = avatarInitials(player);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-    <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="${bg[0]}"/>
-        <stop offset="100%" stop-color="${bg[1]}"/>
-      </linearGradient>
-      <linearGradient id="shirt" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="${shirt}"/>
-        <stop offset="100%" stop-color="${color}"/>
-      </linearGradient>
-    </defs>
-    <rect width="256" height="256" rx="28" fill="url(#bg)"/>
-    <circle cx="128" cy="92" r="40" fill="${skin}"/>
-    <path d="M88 80 q40 -52 80 0 v16 h-80z" fill="${hair}"/>
-    <rect x="110" y="122" width="36" height="20" rx="12" fill="${skin}"/>
-    <path d="M72 218 q8 -78 56 -78 q48 0 56 78" fill="url(#shirt)"/>
-    <circle cx="113" cy="96" r="4.5" fill="#222"/>
-    <circle cx="143" cy="96" r="4.5" fill="#222"/>
-    <path d="M116 114 q12 10 24 0" stroke="#a55252" stroke-width="4" fill="none" stroke-linecap="round"/>
-    <text x="128" y="236" text-anchor="middle" font-family="Inter, sans-serif" font-size="24" font-weight="800" fill="#fff7df">${escapeHtml(initials)}</text>
-  </svg>`;
-}
-function getAvatarSrc(player){
-  const raw = String(player?.avatar || '').trim();
-  if(raw) return raw;
-  return svgToDataUri(generatedAvatarSvg(player));
-}
-function avatarHTML(player, cls=''){
-  const initials = avatarInitials(player);
-  const color = player?.color || '#f6c24f';
-  const src = getAvatarSrc(player);
-  return `<div class="avatar ${cls}" style="background:${color}"><img src="${escapeHtml(src)}" alt="${escapeHtml(player?.nickname||'Гравець')}" onerror="this.remove();this.parentElement.textContent='${escapeHtml(initials)}'"></div>`;
-}
+function avatarHTML(player, cls=''){ const initials=(player?.nickname||'?').trim().slice(0,2).toUpperCase(); const color=player?.color||'#f6c24f'; if(player?.avatar){return `<div class="avatar ${cls}" style="background:${color}"><img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.nickname)}" onerror="this.remove();this.parentElement.textContent='${escapeHtml(initials)}'"></div>`;} return `<div class="avatar ${cls}" style="background:${color}">${escapeHtml(initials)}</div>`; }
 function formatPoints(n){ const v=Number(n)||0; return Number.isInteger(v)?String(v):v.toFixed(1); }
 function gameOrder(){ const map=new Map(); state.results.forEach(r=>{ if(!map.has(r.gameName)) map.set(r.gameName,{name:r.gameName,date:r.date||'',createdAt:r.createdAt||''}); }); return [...map.values()].sort((a,b)=>{ const na=Number((a.name||'').match(/\d+/)?.[0]||999), nb=Number((b.name||'').match(/\d+/)?.[0]||999); if(na!==nb) return na-nb; return (a.date+a.createdAt).localeCompare(b.date+b.createdAt); }).map(x=>x.name); }
 function buildGameRanks(){ const byGame={}; state.results.forEach(r=>{ (byGame[r.gameName] ||= []).push(r); }); const ranks={}; Object.entries(byGame).forEach(([g,arr])=>{ const sorted=[...arr].sort((a,b)=>(Number(b.points)||0)-(Number(a.points)||0)); sorted.forEach((r,i)=>{ ranks[r.id]=r.place || i+1; }); }); return ranks; }
 function getStats(){ const games=gameOrder(); const gameRanks=buildGameRanks(); const byPlayer=new Map(state.players.map((p,idx)=>[p.id,{player:p,points:0,games:0,wins:0,top3:0,avg:0,bestGame:null,scoreByGame:{},results:[],seedRank:p.seedRank||idx+1}])); state.results.forEach(r=>{ const row=byPlayer.get(r.playerId); if(!row) return; const pts=Number(r.points)||0; row.points+=pts; row.games+=1; row.scoreByGame[r.gameName]=(row.scoreByGame[r.gameName]||0)+pts; const place=Number(gameRanks[r.id]); if(place===1) row.wins+=1; if(place>0 && place<=3) row.top3+=1; if(!row.bestGame || pts>row.bestGame.points) row.bestGame={gameName:r.gameName, points:pts}; row.results.push({...r, calculatedPlace:place}); }); const rows=[...byPlayer.values()].map(r=>({...r,avg:r.games?r.points/r.games:0,results:r.results.sort((a,b)=>(a.gameName||'').localeCompare(b.gameName||'', 'uk', {numeric:true}))})); rows.sort((a,b)=> b.points-a.points || b.wins-a.wins || b.avg-a.avg || a.seedRank-b.seedRank || a.player.nickname.localeCompare(b.player.nickname,'uk')); return {rows,games}; }
 function render(){ const {rows,games}=getStats(); const leader=rows[0]; document.getElementById('pageTitle').textContent='Leaderboard'; document.title = state.settings.title || 'Poker Leaderboard'; document.getElementById('leaderName').textContent=leader?leader.player.nickname:'—'; document.getElementById('leaderHint').textContent=leader?`${formatPoints(leader.points)} балів · ${leader.games} ігор`:'Додай результати'; document.getElementById('playersCount').textContent=state.players.length; document.getElementById('gamesCount').textContent=games.length; document.getElementById('resultsCount').textContent=state.results.length; document.getElementById('lastUpdated').textContent=state.settings.updatedAt?new Date(state.settings.updatedAt).toLocaleString('uk-UA'):'ще не оновлювалось'; document.getElementById('activeGameBadge').textContent=`Активна гра: ${state.settings.activeGame||'—'}`; document.getElementById('settingsTitle').value=state.settings.title||''; document.getElementById('settingsActiveGame').value=state.settings.activeGame||''; document.getElementById('resultDate').value ||= todayISO(); document.getElementById('batchDate').value ||= todayISO(); renderChampion(leader); renderTop3(rows); renderLeaderboard(rows,games); renderRecentResults(); renderSelects(); renderAdminLists(); renderBatchGrid(); }
 function renderChampion(leader){ document.getElementById('championAvatar').innerHTML=leader?avatarHTML(leader.player):'<div class="avatar">?</div>'; document.getElementById('championTitle').textContent=leader?leader.player.nickname:'Поточний чемпіон'; document.getElementById('championText').textContent=leader?`${formatPoints(leader.points)} балів. Відрив від другого місця: ${formatPoints(leader.points - ((getStats().rows[1]||{}).points||0))}.`:'Поки немає гравців.'; }
-function renderTop3(rows){ const root=document.getElementById('top3'); const top=rows.slice(0,3); if(!top.length){ root.innerHTML=''; return; } const cls=['first','second','third']; const medal=[1,2,3]; const prizes=['таємний приз і вічна слава переможця першого турніру','таємний сертифікат','таємне солодке']; const icons=['♠','♣','♦']; root.innerHTML=top.map((r,i)=>`<article class="podium ${cls[i]}"><img src="${escapeHtml(getAvatarSrc(r.player))}" alt="${escapeHtml(r.player.nickname)}"><div class="medal">${medal[i]}</div><div class="podium-info"><div class="podium-name">${escapeHtml(r.player.nickname)}</div><div class="podium-note">${icons[i]} ${escapeHtml(prizes[i])}</div><div class="podium-points">${formatPoints(r.points)}</div></div></article>`).join(''); }
+function renderTop3(rows){ const root=document.getElementById('top3'); const top=rows.slice(0,3); if(!top.length){ root.innerHTML=''; return; } const cls=['first','second','third']; const medal=[1,2,3]; const prizes=['таємний приз і вічна слава переможця першого турніру','таємний сертифікат','таємне солодке']; const icons=['♠','♣','♦']; root.innerHTML=top.map((r,i)=>`<article class="podium ${cls[i]}"><img src="${escapeHtml(r.player.avatar)}" alt="${escapeHtml(r.player.nickname)}"><div class="medal">${medal[i]}</div><div class="podium-info"><div class="podium-name">${escapeHtml(r.player.nickname)}</div><div class="podium-note">${icons[i]} ${escapeHtml(prizes[i])}</div><div class="podium-points">${formatPoints(r.points)}</div></div></article>`).join(''); }
 function renderLeaderboard(rows,games){ const root=document.getElementById('leaderboardContent'); if(!rows.length){ root.innerHTML='<div class="empty">Поки немає гравців.</div>'; return; } const max=Math.max(1,...rows.map(r=>r.points)); const active=state.settings.activeGame; root.innerHTML=`<div class="table-wrap"><table class="leader-table"><thead><tr><th>Місце</th><th>Гравець</th><th>Бали</th><th>Прогрес</th>${games.map(g=>`<th class="${g===active?'round-active':''}">${escapeHtml(g)}</th>`).join('')}<th>Ігри</th><th>Перемоги</th><th>Профіль</th></tr></thead><tbody>${rows.map((row,i)=>{ const rcls=i===0?'gold':i===1?'silver':i===2?'bronze':''; const width=Math.max(3,Math.round(row.points/max*100)); return `<tr><td><div class="rank ${rcls}">${i+1}</div></td><td><div class="player-cell">${avatarHTML(row.player)}<div class="player-info"><div class="nickname">${escapeHtml(row.player.nickname)}</div>${row.player.note?`<div class="note">${escapeHtml(row.player.note)}</div>`:''}</div></div></td><td><div class="points">${formatPoints(row.points)}</div></td><td><div class="progress"><span style="width:${width}%"></span></div></td>${games.map(g=>`<td class="round-col ${g===active?'round-active':''}">${row.scoreByGame[g]!=null?formatPoints(row.scoreByGame[g]):'—'}</td>`).join('')}<td><span class="pill">${row.games}</span></td><td><span class="pill">${row.wins}</span></td><td><button class="btn small secondary" onclick="openProfile('${row.player.id}')">Відкрити</button></td></tr>`; }).join('')}</tbody></table></div>`; }
 function renderRecentResults(){ const root=document.getElementById('recentResults'); const pmap=new Map(state.players.map(p=>[p.id,p])); const recent=[...state.results].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).slice(0,12); if(!recent.length){ root.innerHTML='<div class="empty">Тут будуть останні внесені результати.</div>'; return; } root.innerHTML=recent.map(r=>{ const p=pmap.get(r.playerId); return `<div class="history-card"><strong>${escapeHtml(p?p.nickname:'Видалений гравець')} · <span style="color:var(--gold)">${formatPoints(r.points)} балів</span></strong><span>${escapeHtml(r.gameName||'Гра')} · ${escapeHtml(r.date||'без дати')}</span>${r.comment?`<span>${escapeHtml(r.comment)}</span>`:''}</div>`; }).join(''); }
 function renderSelects(){ const sel=document.getElementById('resultPlayer'); if(!sel) return; const cur=sel.value; sel.innerHTML=state.players.map(p=>`<option value="${p.id}">${escapeHtml(p.nickname)}</option>`).join(''); if(state.players.some(p=>p.id===cur)) sel.value=cur; }

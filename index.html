@@ -403,6 +403,17 @@ const REQUIRED_PLAYER_NOTES = {
   "mileni": "мудра сова та окуляри, поки 3 бали"
 };
 const REQUIRED_CAPTIONS_MIGRATION = 'uploadedHtmlCaptions20260710v3';
+const PLAYER_AVATARS_MIGRATION = 'playerAvatars20260910v1';
+const PLAYER_AVATAR_PATHS = {
+  hotdog:'avatars2/hotdog.png', хотдог:'avatars2/hotdog.png',
+  elkashur:'avatars2/elkashur.png', елькащур:'avatars2/elkashur.png',
+  po:'avatars2/po.png', по:'avatars2/po.png',
+  ria:'avatars2/ria.png', 'рiа':'avatars2/ria.png',
+  arjom:'avatars2/arjom.png', artjom:'avatars2/arjom.png', артджом:'avatars2/arjom.png',
+  snickers:'avatars2/snickers.png', 'снiкерс':'avatars2/snickers.png',
+  rafuzima:'avatars2/rafuzima.png', 'рафудзiма':'avatars2/rafuzima.png',
+  natali:'avatars2/natali.png', 'наталi':'avatars2/natali.png'
+};
 function captionKey(value){ return String(value||'').toLowerCase().replaceAll('і','i').replace(/[^a-z0-9а-яіїєґ]/gi,''); }
 const STORAGE_KEY = 'cult_fox_poker_leaderboard_seasons_v1';
 const LEGACY_STORAGE_KEY = 'cult_fox_poker_leaderboard_v2';
@@ -517,6 +528,15 @@ function applyMigrations(s){
     });
     migrations[REQUIRED_CAPTIONS_MIGRATION] = true;
     s.settings.captionMigrationVersion = '2026-07-10-uploaded-html-captions-v3';
+    s.changed = true;
+  }
+
+  if(!migrations[PLAYER_AVATARS_MIGRATION]){
+    (s.players||[]).forEach(p=>{
+      const avatar = PLAYER_AVATAR_PATHS[captionKey(p.id)] || PLAYER_AVATAR_PATHS[captionKey(p.nickname)];
+      if(avatar){ p.avatar = avatar; }
+    });
+    migrations[PLAYER_AVATARS_MIGRATION] = true;
     s.changed = true;
   }
 

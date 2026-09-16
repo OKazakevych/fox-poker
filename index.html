@@ -113,7 +113,11 @@
     .cell-edit-rows{display:grid;gap:10px;margin:14px 0}.cell-edit-row{padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:14px}.cell-edit-row.selected{border-color:var(--gold);background:rgba(246,194,79,.08)}.cell-edit-fields{display:grid;grid-template-columns:minmax(155px,2fr) 1fr 1fr;gap:8px;margin-top:8px}.cell-edit-fields input:disabled{opacity:.35}.cell-editor-error{color:#ffb4ad;line-height:1.5}.cell-editor-hint{color:var(--muted);line-height:1.5}.cell-editor-modal{max-width:680px}
     .dress-code{margin-top:14px;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,220,130,.25);background:rgba(0,0,0,.16)}.dress-code h3{font-size:17px;margin:0 0 8px;color:var(--gold2)}.dress-code-colors{display:flex;flex-wrap:wrap;gap:12px}.dress-code-colors span{display:inline-flex;gap:7px;align-items:center;font-size:14px}.dress-code-colors i{width:15px;height:15px;border:1px solid rgba(255,255,255,.35);border-radius:50%}
     @media(max-width:560px){.cell-edit-fields{grid-template-columns:1fr 1fr}.cell-edit-fields .field:first-child{grid-column:1/-1}.cell-editor-modal{padding:15px}.game-picker .three{grid-template-columns:1fr 1fr}.game-picker .three .field:first-child{grid-column:1/-1}}
+    .leaderboard-wide{min-width:0}.recent-results-section{margin-top:16px}.recent-results-section .list{grid-template-columns:repeat(3,minmax(0,1fr));max-height:360px;padding-right:5px}.recent-results-section .history-card{min-width:0;overflow-wrap:anywhere}
+    @media(max-width:980px){.recent-results-section .list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:560px){.recent-results-section .list{grid-template-columns:minmax(0,1fr);max-height:340px}}
   </style>
+  <link rel="stylesheet" href="club-accounts.css?v=1">
 </head>
 <body>
   <div class="app">
@@ -140,9 +144,24 @@
     <nav class="page-nav" aria-label="Сторінки клубу">
       <a class="btn secondary" id="leaderboardPageLink" href="#season2" aria-current="page">Лідерборд</a>
       <a class="btn secondary" id="finalPageLink" href="#season2/final">Фінальна гра <span aria-hidden="true">↗</span></a>
+      <a class="btn secondary" id="accountPageLink" href="#account">Увійти / Зареєструватися</a>
     </nav>
 
-    <div id="leaderboardPage">
+  <section class="panel panel-pad account-page" id="accountPage" hidden aria-labelledby="accountPageTitle">
+    <header class="account-intro"><div><h2 id="accountPageTitle">Один профіль — усі твої турніри</h2><p>Участь у клубі, історія ігор та особисті результати. Кожна гра має власний рейтинг: бали Poker, Мафії та Root не змішуються.</p></div><div class="account-games"><span>♠ Poker</span><span>Мафія</span><span>Root</span></div></header>
+    <div id="accountMessage" class="account-message" role="status" aria-live="polite"></div>
+    <div id="accountGuest" class="account-auth-grid">
+      <section class="account-auth-card"><h3>Вхід через Google</h3><p>Для нового гравця акаунт створиться автоматично. Твій email не показуватиметься в публічному лідерборді.</p><button type="button" id="accountGoogle" class="account-google" data-account-submit>Продовжити з Google</button><p class="account-privacy">Паролі обробляє Firebase Authentication. Сайт не зберігає їх у турнірній базі. Вже маєш статистику Poker? Після входу надішли запит на прив’язку свого гравця.</p></section>
+      <section class="account-auth-card"><form class="form" id="accountCredentials"><div class="field"><label for="accountMode">Email і пароль</label><select id="accountMode"><option value="login">У мене вже є акаунт</option><option value="register">Створити новий акаунт</option></select></div><div class="field" id="accountRegistrationFields" hidden><label for="accountRegisterNickname">Публічний нікнейм</label><input id="accountRegisterNickname" minlength="2" maxlength="40" autocomplete="nickname"></div><div class="field"><label for="accountLoginEmail">Email</label><input id="accountLoginEmail" type="email" required autocomplete="username"></div><div class="field"><label for="accountPassword">Пароль</label><input id="accountPassword" type="password" required autocomplete="current-password"></div><div class="field" id="accountConfirmField" hidden><label for="accountPasswordConfirm">Повтори пароль</label><input id="accountPasswordConfirm" type="password" autocomplete="new-password"><small class="field-hint">Для нового акаунта — щонайменше 8 символів.</small></div><button type="submit" id="accountSubmit" class="btn green" data-account-submit>Увійти</button><button type="button" id="accountReset" class="btn secondary" data-account-submit>Відновити пароль</button></form></section>
+    </div>
+    <div id="accountMember" hidden>
+      <header class="account-member-header"><div><span id="accountRole" class="badge"></span><h2 id="accountName"></h2><p id="accountEmail"></p></div><div class="actions"><button id="accountAdminButton" class="btn green" type="button" hidden>До адмін-панелі</button><button id="accountSignOut" type="button" class="btn secondary" data-account-submit>Вийти з акаунта</button></div></header>
+      <section id="accountVerify" class="account-verify" hidden><p>Підтвердь email за посиланням у листі. Це потрібно перед прив’язкою до існуючого гравця.</p><div class="actions"><button type="button" id="accountResendVerification" class="btn small secondary" data-account-submit>Надіслати лист ще раз</button><button type="button" id="accountRefreshVerification" class="btn small green" data-account-submit>Я підтвердив email</button></div></section>
+      <div class="account-controls"><section><h3>Мій нікнейм</h3><form id="accountNicknameForm" class="form"><div class="field"><label for="accountNickname">Ім’я в профілі</label><input id="accountNickname" required minlength="2" maxlength="40" autocomplete="nickname"></div><button type="submit" class="btn small secondary" data-account-submit>Зберегти нікнейм</button></form><p>Зміна цього імені не перейменовує гравця у старій таблиці Poker.</p></section><section><h3>Моя історія Poker</h3><p id="accountPokerLink"></p><form id="accountLinkForm" class="form"><div class="field"><label for="accountPokerPlayer">Мій гравець у таблиці</label><select id="accountPokerPlayer" required></select></div><button type="submit" class="btn small secondary" data-account-submit>Запросити прив’язку</button></form><p id="accountLinkStatus" aria-live="polite"></p><small class="field-hint">Адміністратор перевіряє запит. Одна лише однакова назва не дає доступу до чужої історії.</small></section></div>
+      <div class="panel-title"><h2>Мої турніри</h2><span class="badge">окрема статистика кожної гри</span></div><div id="accountTournaments" class="club-tournaments"></div>
+    </div>
+  </section>
+  <div id="leaderboardPage">
     <nav class="season-switcher" role="tablist" aria-label="Сезони турніру">
       <button class="season-tab" id="seasonTab1" type="button" role="tab" aria-selected="false" onclick="switchSeason('season1')"><span>Сезон 1</span><small>архів</small></button>
       <button class="season-tab active" id="seasonTab2" type="button" role="tab" aria-selected="true" onclick="switchSeason('season2')"><span>Сезон 2</span><small>активний</small></button>
@@ -180,15 +199,11 @@
 
     <section class="top3" id="top3"></section>
 
-    <section class="grid">
+    <section class="leaderboard-wide">
       <main class="panel panel-pad">
         <div class="panel-title"><h2 id="leaderboardTitle">Поточний лідерборд · Сезон 2</h2><span class="badge" id="activeGameBadge">Активна гра: —</span></div>
         <div id="leaderboardContent"></div>
       </main>
-      <aside class="panel panel-pad side">
-        <div class="panel-title"><h3>Останні результати</h3><span class="badge">історія</span></div>
-        <div class="list" id="recentResults"></div>
-      </aside>
     </section>
 
     <section class="panel panel-pad bounty-section" id="bountySection">
@@ -346,13 +361,23 @@
       </footer>
     </section>
 
+    <section class="panel panel-pad recent-results-section" id="recentResultsSection" aria-labelledby="recentResultsTitle">
+      <div class="panel-title"><h2 id="recentResultsTitle">Останні результати</h2><span class="badge">історія</span></div>
+      <div class="list" id="recentResults"></div>
+    </section>
+
     <section class="panel panel-pad" id="adminSection" style="margin-top:16px">
       <div class="panel-title"><h2>Адмін-панель</h2><span class="badge" id="adminStatus">закрито</span></div>
       <div class="admin-lock" id="adminLock">
-        <div class="field"><label>PIN</label><input id="pinInput" type="password" placeholder="PIN за замовчуванням: 1234" onkeydown="if(event.key==='Enter') loginAdmin()"></div>
+        <p class="account-admin-note">Для редагування увійди у підтверджений акаунт адміністратора. Старий PIN більше не надає доступу до бази.</p><input id="pinInput" type="hidden">
         <button class="btn green" onclick="loginAdmin()">Відкрити адмін-панель</button>
       </div>
       <div class="admin" id="adminBox">
+        <details id="clubAdminPanel" hidden><summary class="club-admin-summary">Акаунти гравців та інші турніри клубу</summary>
+          <div class="club-admin-box"><h3>Акаунти та прив’язка Poker</h3><p class="muted">Підтверджуй лише запит, у якому впевнений. Прив’язка відкриває історію гравця в його особистому профілі, але не дає права редагувати результати.</p><div id="clubRequestsList"></div><details><summary>Зареєстровані гравці</summary><div id="clubAccountList" class="club-members"></div></details></div>
+          <div class="club-admin-box"><h3>Інші турніри клубу</h3><p class="muted">Додай Мафію, Root чи іншу гру. Бали вносяться за правилами відповідного турніру й не змінюють Poker.</p><form id="clubTournamentForm" class="form"><div class="field"><label for="clubEditTournament">Турнір</label><select id="clubEditTournament"></select></div><div class="two"><div class="field"><label for="clubTournamentTitle">Назва турніру</label><input id="clubTournamentTitle" required maxlength="80" placeholder="Наприклад: Root · Осінь 2026"></div><div class="field"><label for="clubTournamentGame">Гра</label><input id="clubTournamentGame" required maxlength="40" value="Мафія" list="clubGameTypes"><datalist id="clubGameTypes"><option value="Мафія"><option value="Root"></datalist></div></div><div class="field"><label for="clubTournamentUnit">Одиниця рейтингу</label><input id="clubTournamentUnit" value="Бали" required maxlength="30"></div><label class="check-row"><input type="checkbox" id="clubTournamentArchived">Турнір завершено (архів)</label><button type="submit" class="btn green" data-account-submit>Зберегти турнір</button></form></div>
+          <div class="club-admin-box"><h3>Результати інших турнірів</h3><form id="clubResultForm" class="form"><input type="hidden" id="clubResultId"><div class="two"><div class="field"><label for="clubResultUser">Акаунт гравця</label><select id="clubResultUser" required></select></div><div class="field"><label for="clubResultTournament">Турнір</label><select id="clubResultTournament" required></select></div></div><div class="two"><div class="field"><label for="clubResultDate">Дата</label><input id="clubResultDate" type="date" required></div><div class="field"><label for="clubResultRound">Гра / раунд</label><input id="clubResultRound" maxlength="60" required placeholder="День 1 · Гра 1"></div></div><div class="two"><div class="field"><label for="clubResultPoints">Бали</label><input id="clubResultPoints" type="number" step="any" required></div><div class="field"><label for="clubResultPlace">Місце (необов’язково)</label><input id="clubResultPlace" type="number" min="1" step="1"></div></div><div class="two"><label class="check-row"><input id="clubResultWon" type="checkbox">Перемога гравця / його команди</label><label class="check-row"><input id="clubResultAbsent" type="checkbox">× Гравця не було</label></div><div class="field"><label for="clubResultNote">Коментар / роль / фракція</label><textarea id="clubResultNote" maxlength="500" rows="2"></textarea></div><div class="actions"><button type="submit" class="btn green" data-account-submit>Зберегти результат турніру</button><button type="button" id="clubResultNew" class="btn secondary">Новий результат</button></div></form><div id="clubOtherResults" class="club-other-results"></div></div>
+        </details>
         <div class="actions"><button type="button" class="btn small secondary" onclick="document.getElementById('leaderboardTitle').scrollIntoView({behavior:'smooth'})">↑ Редагувати клітинки таблиці</button><button type="button" class="btn small ghost" onclick="logoutAdmin()">Закрити адмін-панель</button></div>
         <div class="tabs">
           <button class="tab active" onclick="switchTab('batchTab', this)">Масове внесення гри</button>
@@ -417,7 +442,7 @@
         <div class="tab-panel" id="settingsTab">
           <form class="form" onsubmit="saveSettings(event)">
             <div class="field"><label>Назва турніру</label><input id="settingsTitle"></div>
-            <div class="two"><div class="field"><label>Активна гра для підсвітки</label><input id="settingsActiveGame" placeholder="Гра 2"></div><div class="field"><label>Новий PIN</label><input id="settingsPin" type="password" placeholder="залиш порожнім, щоб не змінювати"></div></div>
+            <div class="field"><label>Активна гра для підсвітки</label><input id="settingsActiveGame" placeholder="Гра 2"></div><p class="muted">Доступ адміністратора визначається підтвердженим акаунтом, а не PIN-кодом.</p>
             <button class="btn green" type="submit">Зберегти налаштування</button>
           </form>
           <div class="danger-zone actions">
@@ -500,6 +525,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 
 <script>
 
@@ -544,16 +570,9 @@ function initCloudSync(){
     setSyncStatus('Онлайн-синхронізація · підключення…','pending');
     cloudRef.on('value', snap=>{
       const remote=snap.val();
-      const localUpdated=getStateUpdatedAt(appState);
-      const remoteUpdated=getStateUpdatedAt(remote);
       const remoteHasData=remote && (remote.seasons || (Array.isArray(remote.players) && Array.isArray(remote.results)));
       if(remoteHasData){
-        if(!cloudLoadedOnce && localUpdated > remoteUpdated){
-          cloudLoadedOnce = true;
-          cloudRef.set(appState);
-          setSyncStatus('Онлайн · локальні зміни відправлено','ok');
-          return;
-        }
+        // The server is authoritative. Never upload a viewer's cached state on page load.
         cloudApplying = true;
         const needsSeasonMigration=!remote.seasons || !remote.seasons.season2;
         const migrated=applyAppMigrations(normalizeAppState(remote));
@@ -567,7 +586,7 @@ function initCloudSync(){
         render();
         cloudApplying = false;
         cloudLoadedOnce = true;
-        if(migrationChanged||needsSeasonMigration){
+        if((migrationChanged||needsSeasonMigration)&&window.clubAccounts?.canAdmin()){
           setSyncStatus('Онлайн · сезони оновлюються…','pending');
           cloudRef.set(appState).then(()=>setSyncStatus('Онлайн · сезони синхронізовано','ok')).catch(err=>{ console.error(err); setSyncStatus('Онлайн · помилка оновлення сезонів','error'); });
         } else {
@@ -575,8 +594,9 @@ function initCloudSync(){
         }
       } else if(!cloudLoadedOnce){
         cloudLoadedOnce = true;
-        cloudRef.set(appState);
-        setSyncStatus('Онлайн · створено базу турніру','ok');
+        if(window.clubAccounts?.canAdmin()){
+          cloudRef.set(appState).then(()=>setSyncStatus('Онлайн · створено базу турніру','ok')).catch(()=>setSyncStatus('Онлайн · базу не створено','error'));
+        }else setSyncStatus('Онлайн · база очікує адміністратора','pending');
       }
     }, err=>{
       console.error(err);
@@ -773,7 +793,7 @@ function applyMigrations(s){
 
   return s;
 }
-function saveState(){ state.settings.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); render(); if(cloudReady && cloudRef && !cloudApplying){ setSyncStatus('Онлайн · збереження…','pending'); cloudRef.set(appState).then(()=>setSyncStatus('Онлайн · зміни збережено','ok')).catch(err=>{ console.error(err); setSyncStatus('Онлайн · помилка збереження','error'); }); } }
+function saveState(){ if(cloudReady&&!window.clubAccounts?.canAdmin()){ toast('Зміни не збережено: потрібен акаунт адміністратора'); return; } state.settings.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); render(); if(cloudReady && cloudRef && !cloudApplying){ setSyncStatus('Онлайн · збереження…','pending'); cloudRef.set(appState).then(()=>setSyncStatus('Онлайн · зміни збережено','ok')).catch(err=>{ console.error(err); setSyncStatus('Онлайн · помилка збереження','error'); }); } }
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2200); }
 function avatarHTML(player, cls=''){ const initials=(player?.nickname||'?').trim().slice(0,2).toUpperCase(); const color=player?.color||'#f6c24f'; if(player?.avatar){return `<div class="avatar ${cls}" style="background:${color}"><img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.nickname)}" onerror="this.remove();this.parentElement.textContent='${escapeHtml(initials)}'"></div>`;} return `<div class="avatar ${cls}" style="background:${color}">${escapeHtml(initials)}</div>`; }
 function formatPoints(n){ const v=Number(n)||0; return Number.isInteger(v)?String(v):v.toFixed(1); }
@@ -1041,7 +1061,7 @@ function renderFinalGamePage(rows){
 function profileHref(playerId,seasonId=activeSeasonId){ return `#${seasonId}/player/${encodeURIComponent(playerId)}`; }
 function getProfileRoute(){ const match=(location.hash||'').match(/^#(season1|season2)(\/final)?\/player\/([^/]+)$/); if(!match||match[2]&&match[1]!=='season2') return null; try{return {seasonId:match[1],playerId:decodeURIComponent(match[3])};}catch(e){return null;} }
 function syncProfileSeason(){ const route=getProfileRoute(); const pageMatch=(location.hash||'').match(/^#(season1|season2)(?:\/final)?$/); const seasonId=route?.seasonId||pageMatch?.[1]; if(!seasonId||!appState.seasons[seasonId]) return; activeSeasonId=seasonId; state=appState.seasons[activeSeasonId]; localStorage.setItem(ACTIVE_SEASON_KEY,activeSeasonId); }
-function render(){ const stats=getStats(); const rows=visibleRows(stats.rows); const games=stats.games; const visibleIds=new Set(rows.map(row=>row.player.id)); const hiddenCount=state.players.length-rows.length; const leader=rows.find(row=>row.games>0)||null; const label=seasonLabel(); renderSeasonTabs(); renderGamePickers(); document.getElementById('pageTitle').textContent='Leaderboard'; document.title = `${state.settings.title||'Poker Leaderboard'} · ${label}`; document.getElementById('leaderboardTitle').textContent=`Поточний лідерборд · ${label}`; document.getElementById('leaderName').textContent=leader?leader.player.nickname:'—'; document.getElementById('leaderHint').textContent=leader?`${formatPoints(leader.points)} балів · ${leader.games} ігор`:`${label} ще без результатів`; document.getElementById('playersCount').textContent=rows.length; document.getElementById('playersCountHint').textContent=hiddenCount?`у таблиці · ${hiddenCount} приховано`:'учасників у таблиці'; document.getElementById('gamesCount').textContent=games.length; document.getElementById('resultsCount').textContent=state.results.filter(r=>!r.absent&&visibleIds.has(r.playerId)).length; document.getElementById('lastUpdated').textContent=state.settings.updatedAt?new Date(state.settings.updatedAt).toLocaleString('uk-UA'):'ще не оновлювалось'; document.getElementById('activeGameBadge').textContent=`Активна гра: ${state.settings.activeGame||'—'}`; document.getElementById('settingsTitle').value=state.settings.title||''; document.getElementById('settingsActiveGame').value=state.settings.activeGame||''; document.getElementById('fundAmountInput').value=Math.max(0,Number(state.settings.prizeFundTotal)||0); document.getElementById('fundDescriptionInput').value=String(state.settings.prizeFundDescription||DEFAULT_PRIZE_FUND_DESCRIPTION); document.getElementById('resultDate').value ||= todayISO(); document.getElementById('batchDate').value ||= todayISO(); renderPrizeFund(); renderChampion(leader,rows); renderTop3(rows); renderLeaderboard(rows,games); renderBountyHunter(rows); renderRecentResults(); renderSelects(); renderAdminLists(); renderBatchGrid(); renderFinalGamePage(rows); }
+function render(){ const stats=getStats(); const rows=visibleRows(stats.rows); const games=stats.games; const visibleIds=new Set(rows.map(row=>row.player.id)); const hiddenCount=state.players.length-rows.length; const leader=rows.find(row=>row.games>0)||null; const label=seasonLabel(); renderSeasonTabs(); renderGamePickers(); document.getElementById('pageTitle').textContent='Leaderboard'; document.title = `${state.settings.title||'Poker Leaderboard'} · ${label}`; document.getElementById('leaderboardTitle').textContent=`Поточний лідерборд · ${label}`; document.getElementById('leaderName').textContent=leader?leader.player.nickname:'—'; document.getElementById('leaderHint').textContent=leader?`${formatPoints(leader.points)} балів · ${leader.games} ігор`:`${label} ще без результатів`; document.getElementById('playersCount').textContent=rows.length; document.getElementById('playersCountHint').textContent=hiddenCount?`у таблиці · ${hiddenCount} приховано`:'учасників у таблиці'; document.getElementById('gamesCount').textContent=games.length; document.getElementById('resultsCount').textContent=state.results.filter(r=>!r.absent&&visibleIds.has(r.playerId)).length; document.getElementById('lastUpdated').textContent=state.settings.updatedAt?new Date(state.settings.updatedAt).toLocaleString('uk-UA'):'ще не оновлювалось'; document.getElementById('activeGameBadge').textContent=`Активна гра: ${state.settings.activeGame||'—'}`; document.getElementById('settingsTitle').value=state.settings.title||''; document.getElementById('settingsActiveGame').value=state.settings.activeGame||''; document.getElementById('fundAmountInput').value=Math.max(0,Number(state.settings.prizeFundTotal)||0); document.getElementById('fundDescriptionInput').value=String(state.settings.prizeFundDescription||DEFAULT_PRIZE_FUND_DESCRIPTION); document.getElementById('resultDate').value ||= todayISO(); document.getElementById('batchDate').value ||= todayISO(); renderPrizeFund(); renderChampion(leader,rows); renderTop3(rows); renderLeaderboard(rows,games); renderBountyHunter(rows); renderRecentResults(); renderSelects(); renderAdminLists(); renderBatchGrid(); renderFinalGamePage(rows); window.clubAccounts?.render(); }
 function renderPrizeFund(){ const total=Math.max(0,Number(state.settings.prizeFundTotal)||0); const half=total/2; const description=String(state.settings.prizeFundDescription||DEFAULT_PRIZE_FUND_DESCRIPTION); document.getElementById('prizeFundTotal').textContent=formatMoney(total); document.getElementById('playerPrizesAmount').textContent=formatMoney(half); document.getElementById('charityAmount').textContent=formatMoney(half); document.getElementById('prizeFundDescription').textContent=description; document.getElementById('adminFundTotal').textContent=formatMoney(total); }
 function renderChampion(leader,rows){ const second=rows.find(r=>r.games>0&&r.player.id!==leader?.player.id); document.getElementById('championAvatar').innerHTML=leader?avatarHTML(leader.player):'<div class="avatar">?</div>'; document.getElementById('championTitle').textContent=leader?leader.player.nickname:`${seasonLabel()} стартує`; document.getElementById('championText').textContent=leader?`${formatPoints(leader.points)} балів. Відрив від другого місця: ${formatPoints(leader.points-(second?.points||0))}.`:`${rows.length?`Усі ${rows.length} видимих гравців готові до першої гри.`:'Усі гравці приховані в адмін-панелі.'}`; }
 function renderTop3(rows){ const root=document.getElementById('top3'); const top=rows.filter(row=>row.games>0).slice(0,3); if(!top.length){ root.innerHTML=`<div class="panel season-kickoff"><strong>${seasonLabel()} · новий старт</strong><span>Склад гравців перенесено. П’єдестал з’явиться після першої внесеної гри.</span></div>`; return; } const cls=['first','second','third']; const medal=[1,2,3]; const prizes=activeSeasonId==='season1'?['таємний приз і вічна слава переможця першого турніру','таємний сертифікат','таємне солодке']:['лідер сезону','друге місце сезону','третє місце сезону']; const icons=['♠','♣','♦']; root.innerHTML=top.map((r,i)=>`<article class="podium ${cls[i]}"><img src="${escapeHtml(r.player.avatar)}" alt="${escapeHtml(r.player.nickname)}"><div class="podium-info"><div class="medal" aria-label="${medal[i]} місце">${medal[i]}</div><a class="podium-name profile-link" href="${profileHref(r.player.id)}">${escapeHtml(r.player.nickname)}</a><div class="podium-note">${icons[i]} ${escapeHtml(prizes[i])}</div>${activeSeasonId==='season2'&&r.player.benefactor?`<div class="podium-benefactor">${compactBenefactorAwardHTML(r.player)}</div>`:''}<div class="podium-points">${formatPoints(r.points)}</div></div></article>`).join(''); }
@@ -1131,7 +1151,7 @@ function updateBatchScoringPreview(){
   status.className=`batch-scoring-status ${scored.warning?'warn':'ok'}`;
   status.textContent=scored.warning||`${scored.playerCount} учасників · ${scored.totalEliminations} вибивань · бали готові до збереження.`;
 }
-function loginAdmin(){ const pin=document.getElementById('pinInput').value; if(pin===(state.settings.pin||'1234')){ isAdmin=true; document.getElementById('adminBox').classList.add('open'); document.getElementById('adminLock').style.display='none'; document.getElementById('adminStatus').textContent='відкрито'; renderLeaderboard(visibleRows(getStats().rows),gameOrder()); toast('Адмін-панель відкрита · натисни клітинку результату'); } else toast('Неправильний PIN'); }
+function loginAdmin(){ if(!window.clubAccounts?.canAdmin()){ location.hash='#account'; toast('Увійди у підтверджений акаунт адміністратора'); return; } isAdmin=true; document.getElementById('adminBox').classList.add('open'); document.getElementById('adminLock').style.display='none'; document.getElementById('adminStatus').textContent='відкрито · акаунт адміністратора'; renderLeaderboard(visibleRows(getStats().rows),gameOrder()); toast('Адмін-панель відкрита · натисни клітинку результату'); }
 function scrollToAdmin(){ document.getElementById('adminSection').scrollIntoView({behavior:'smooth',block:'start'}); }
 function switchTab(id,btn){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active')); btn.classList.add('active'); document.getElementById(id).classList.add('active'); }
 function addPlayer(e){ e.preventDefault(); const nickname=document.getElementById('playerNickname').value.trim(); if(!nickname) return; if(state.players.some(p=>p.nickname.toLowerCase()===nickname.toLowerCase())) return toast('Такий нікнейм уже є'); state.players.push({id:uid('player'),nickname,color:document.getElementById('playerColor').value,avatar:document.getElementById('playerAvatar').value.trim(),note:document.getElementById('playerNote').value.trim(),hidden:false,benefactor:false,seedRank:state.players.length+1,createdAt:new Date().toISOString()}); e.target.reset(); document.getElementById('playerColor').value='#f6c24f'; saveState(); toast('Гравця додано'); }
@@ -1297,7 +1317,7 @@ function deleteResult(id){
   toast('Результат видалено');
 }
 function savePrizeFund(e){ e.preventDefault(); if(activeSeasonId!=='season2') return; const total=Number(document.getElementById('fundAmountInput').value); const description=document.getElementById('fundDescriptionInput').value.trim(); if(!Number.isFinite(total)||total<0) return toast('Сума фонду має бути невід’ємним числом'); if(!description) return toast('Додай текст про призовий фонд'); state.settings.prizeFundTotal=total; state.settings.prizeFundDescription=description; saveState(); toast('Призовий фонд оновлено'); }
-function saveSettings(e){ e.preventDefault(); state.settings.title=document.getElementById('settingsTitle').value.trim()||'Poker Leaderboard'; state.settings.activeGame=document.getElementById('settingsActiveGame').value.trim()||''; const pin=document.getElementById('settingsPin').value.trim(); if(pin) state.settings.pin=pin; document.getElementById('settingsPin').value=''; saveState(); toast('Налаштування збережено'); }
+function saveSettings(e){ e.preventDefault(); state.settings.title=document.getElementById('settingsTitle').value.trim()||'Poker Leaderboard'; state.settings.activeGame=document.getElementById('settingsActiveGame').value.trim()||''; saveState(); toast('Налаштування збережено'); }
 function renderActiveProfile(){
   const route=getProfileRoute();
   const modal=document.getElementById('profileModal');
@@ -1354,5 +1374,6 @@ syncSeasonInputs();
 render();
 initCloudSync();
 </script>
+<script src="club-accounts.js?v=1"></script>
 </body>
 </html>

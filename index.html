@@ -118,6 +118,7 @@
     @media(max-width:560px){.recent-results-section .list{grid-template-columns:minmax(0,1fr);max-height:340px}}
   </style>
   <link rel="stylesheet" href="club-accounts.css?v=1">
+  <link rel="stylesheet" href="club-leaderboards.css?v=1">
 </head>
 <body>
   <div class="app">
@@ -126,6 +127,17 @@
       <h1 id="pageTitle" tabindex="-1">Leaderboard</h1>
       <p class="subtitle motto">Кожної п’ятниці у клубі Кульгавої Лисиці відбувається гемблінг, якого не існує.</p>
     </header>
+
+    <nav class="game-portals" id="clubGameTiles" aria-label="Обрати лідерборд гри">
+      <a class="game-portal portal-mafia" href="#mafia" id="mafiaPortal">
+        <svg class="portal-art" viewBox="0 0 280 200" aria-hidden="true"><circle cx="201" cy="61" r="40" fill="#eac7aa" opacity=".8"/><path d="M15 190V106h38V73h32v51h26V91h39v99M182 190v-76h33V89h23v44h32v57" fill="#171020"/><path d="m87 95 18-52 55 4 26 55Z" fill="#150c18"/><path d="m73 94 122 7 5 17-142-5Z" fill="#241327"/><path d="m106 111 62 5-11 43-23 16-29-25Z" fill="#a44762"/><path d="m97 154 38 25 28-24 31 45H59Z" fill="#140e1c"/><path d="m128 176 8 24 9-22" fill="#e68f91"/><path d="M24 133h7m29-41h7m54 32h7m84 13h7m32 14h7" stroke="#efb295" stroke-width="5"/></svg>
+        <span class="portal-kicker">Інший бік клубу</span><strong>Мафія</strong><span class="portal-copy">Місто засинає. Рейтинг — ні.</span><span class="portal-cta">Відкрити лідерборд <span aria-hidden="true">↗</span></span>
+      </a>
+      <a class="game-portal portal-root" href="#root" id="rootPortal">
+        <svg class="portal-art" viewBox="0 0 280 200" aria-hidden="true"><circle cx="180" cy="84" r="70" fill="#e7b759" opacity=".45"/><path d="M238 200V68m0 42-23-26m23 59 26-31M38 200v-82m0 38-19-24" stroke="#304c36" stroke-width="9"/><path d="m236 8-37 69h77Zm-193 67L10 131h66Z" fill="#476e42"/><path d="m93 113-3-72 47 33 38-25 15 63-46 64Z" fill="#c56a32"/><path d="m96 59 6 41 27-18m48-19-29 26 30 16" fill="#543a2b"/><path d="m94 113 46 20 50-21-46 64Z" fill="#fff2d1"/><path d="m135 140 10 7 10-8Z" fill="#293f32"/><circle cx="117" cy="111" r="4" fill="#293f32"/><circle cx="165" cy="109" r="4" fill="#293f32"/><path d="M74 200q18-43 68-36t61 36" fill="#325844"/><path d="M0 198q72-33 145 0t135-13" fill="none" stroke="#869b56" stroke-width="11"/></svg>
+        <span class="portal-kicker">Пригоди за ігровим столом</span><strong>Root</strong><span class="portal-copy">Велика боротьба маленьких мешканців.</span><span class="portal-cta">Відкрити лідерборд <span aria-hidden="true">↗</span></span>
+      </a>
+    </nav>
 
     <section class="panel prize-fund" id="prizeFundSection" aria-labelledby="prizeFundTitle">
       <div class="fund-heading">
@@ -146,6 +158,17 @@
       <a class="btn secondary" id="finalPageLink" href="#season2/final">Фінальна гра <span aria-hidden="true">↗</span></a>
       <a class="btn secondary" id="accountPageLink" href="#account">Увійти / Зареєструватися</a>
     </nav>
+
+  <section id="clubLeaderboardPage" class="club-board-page" hidden aria-labelledby="clubBoardTitle">
+    <header class="board-intro"><div><span class="board-eyebrow" id="clubBoardEyebrow"></span><h2 id="clubBoardTitle" tabindex="-1"></h2><p id="clubBoardLead"></p></div><a class="board-back" href="#season2">← До Poker</a></header>
+    <div class="board-controls"><div class="field"><label for="clubBoardTournament">Турнір / сезон</label><select id="clubBoardTournament"></select></div><div class="field"><label for="clubBoardSearch">Знайти гравця</label><input id="clubBoardSearch" type="search" placeholder="Введи нікнейм…" autocomplete="off"></div><button id="clubBoardAdmin" class="board-back" type="button" hidden>Керувати турнірами ↗</button></div>
+    <p id="clubBoardStatus" class="board-status" role="status" aria-live="polite"></p>
+    <div class="board-summary" id="clubBoardSummary"></div>
+    <div class="board-podium" id="clubBoardPodium" aria-label="Лідери турніру"></div>
+    <section class="board-panel"><div class="board-panel-heading"><h3>Таблиця результатів</h3><span id="clubBoardCount"></span></div><p class="board-table-hint">↔ Прокручуй таблицю вбік, щоб побачити всі ігри. Натисни нікнейм для історії гравця.</p><div class="board-scroll-top" id="clubBoardScrollTop" tabindex="0" aria-label="Прокрутка результатів вбік"><div id="clubBoardScrollSizer"></div></div><div class="board-table-scroll" id="clubBoardScrollBottom" tabindex="0" aria-label="Таблиця турніру"><table class="board-table" id="clubBoardTable"></table></div><p id="clubBoardEmpty" class="board-empty" hidden></p></section>
+    <section id="clubBoardPlayer" class="board-panel board-player-detail" hidden aria-labelledby="clubBoardPlayerTitle"></section>
+    <footer class="board-rules"><h3>Як читається рейтинг</h3><p>Рейтинг — сума балів, внесених адміністратором за правилами цього турніру. За однакових балів вище стоїть гравець із більшою кількістю перемог; повністю рівні результати мають спільне місце.</p><p><strong>×</strong> — гравця не було: 0 балів і 0 зіграних ігор. <strong>—</strong> — результат ще не внесено. Рейтинги Poker, Мафії та Root не змішуються.</p><a href="#account">Мій профіль та всі мої турніри →</a></footer>
+  </section>
 
   <section class="panel panel-pad account-page" id="accountPage" hidden aria-labelledby="accountPageTitle">
     <header class="account-intro"><div><h2 id="accountPageTitle">Один профіль — усі твої турніри</h2><p>Участь у клубі, історія ігор та особисті результати. Кожна гра має власний рейтинг: бали Poker, Мафії та Root не змішуються.</p></div><div class="account-games"><span>♠ Poker</span><span>Мафія</span><span>Root</span></div></header>
@@ -374,6 +397,7 @@
       </div>
       <div class="admin" id="adminBox">
         <details id="clubAdminPanel" hidden><summary class="club-admin-summary">Акаунти гравців та інші турніри клубу</summary>
+          <div class="club-admin-box"><h3>Публічні лідерборди Мафії та Root</h3><p class="muted">Після збереження турніру або результату його лідерборд оновлюється автоматично. Публікуються нікнейм і результати ігор; email, ідентифікатори акаунтів та приватні коментарі не публікуються. Для вже внесених турнірів або після зміни нікнеймів натисни кнопку нижче.</p><button id="clubPublishBoards" type="button" class="btn secondary" data-account-submit>Оновити публічні лідерборди</button><p id="clubPublishStatus" role="status" aria-live="polite"></p></div>
           <div class="club-admin-box"><h3>Акаунти та прив’язка Poker</h3><p class="muted">Підтверджуй лише запит, у якому впевнений. Прив’язка відкриває історію гравця в його особистому профілі, але не дає права редагувати результати.</p><div id="clubRequestsList"></div><details><summary>Зареєстровані гравці</summary><div id="clubAccountList" class="club-members"></div></details></div>
           <div class="club-admin-box"><h3>Інші турніри клубу</h3><p class="muted">Додай Мафію, Root чи іншу гру. Бали вносяться за правилами відповідного турніру й не змінюють Poker.</p><form id="clubTournamentForm" class="form"><div class="field"><label for="clubEditTournament">Турнір</label><select id="clubEditTournament"></select></div><div class="two"><div class="field"><label for="clubTournamentTitle">Назва турніру</label><input id="clubTournamentTitle" required maxlength="80" placeholder="Наприклад: Root · Осінь 2026"></div><div class="field"><label for="clubTournamentGame">Гра</label><input id="clubTournamentGame" required maxlength="40" value="Мафія" list="clubGameTypes"><datalist id="clubGameTypes"><option value="Мафія"><option value="Root"></datalist></div></div><div class="field"><label for="clubTournamentUnit">Одиниця рейтингу</label><input id="clubTournamentUnit" value="Бали" required maxlength="30"></div><label class="check-row"><input type="checkbox" id="clubTournamentArchived">Турнір завершено (архів)</label><button type="submit" class="btn green" data-account-submit>Зберегти турнір</button></form></div>
           <div class="club-admin-box"><h3>Результати інших турнірів</h3><form id="clubResultForm" class="form"><input type="hidden" id="clubResultId"><div class="two"><div class="field"><label for="clubResultUser">Акаунт гравця</label><select id="clubResultUser" required></select></div><div class="field"><label for="clubResultTournament">Турнір</label><select id="clubResultTournament" required></select></div></div><div class="two"><div class="field"><label for="clubResultDate">Дата</label><input id="clubResultDate" type="date" required></div><div class="field"><label for="clubResultRound">Гра / раунд</label><input id="clubResultRound" maxlength="60" required placeholder="День 1 · Гра 1"></div></div><div class="two"><div class="field"><label for="clubResultPoints">Бали</label><input id="clubResultPoints" type="number" step="any" required></div><div class="field"><label for="clubResultPlace">Місце (необов’язково)</label><input id="clubResultPlace" type="number" min="1" step="1"></div></div><div class="two"><label class="check-row"><input id="clubResultWon" type="checkbox">Перемога гравця / його команди</label><label class="check-row"><input id="clubResultAbsent" type="checkbox">× Гравця не було</label></div><div class="field"><label for="clubResultNote">Коментар / роль / фракція</label><textarea id="clubResultNote" maxlength="500" rows="2"></textarea></div><div class="actions"><button type="submit" class="btn green" data-account-submit>Зберегти результат турніру</button><button type="button" id="clubResultNew" class="btn secondary">Новий результат</button></div></form><div id="clubOtherResults" class="club-other-results"></div></div>
@@ -1374,6 +1398,7 @@ syncSeasonInputs();
 render();
 initCloudSync();
 </script>
-<script src="club-accounts.js?v=1"></script>
+<script src="club-leaderboards.js?v=1"></script>
+<script src="club-accounts.js?v=2"></script>
 </body>
 </html>

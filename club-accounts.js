@@ -101,7 +101,8 @@
       if(tournament.archived&&!entries.length)return;
       const total=played.reduce((sum,r)=>sum+(Number(r.points)||0),0),wins=played.filter(r=>r.won===true).length;
       const history=entries.length?`<details><summary>Історія результатів · ${entries.length}</summary><ul class="club-history">${entries.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>`<li><strong>${esc(r.date)} · ${esc(r.round||'Гра')}</strong><span>${r.absent?'× Не був на грі':`${esc(formatPoints(r.points))} ${esc(tournament.unit||'балів')}${r.place?' · #'+esc(r.place):''}${r.won?' · перемога':''}`}</span>${r.note?`<small>${esc(r.note)}</small>`:''}</li>`).join('')}</ul></details>`:'<p>Результатів поки немає. Вони з’являться після внесення адміністратором.</p>';
-      cards.push(statsCard(tournament.title,tournament.game+(tournament.archived?' · архів':''),[[tournament.unit||'Бали',formatPoints(total)],['Ігри',played.length],['Перемоги',wins],['Середнє',played.length?formatPoints(total/played.length):'—']],history));
+      const kind=window.clubLeaderboards?.kindOf(tournament.game),boardLink=kind?`<p><a class="btn small secondary" href="${esc(window.clubLeaderboards.href(kind,id))}">Лідерборд ${esc(tournament.game)} ↗</a></p>`:'';
+      cards.push(statsCard(tournament.title,tournament.game+(tournament.archived?' · архів':''),[[tournament.unit||'Бали',formatPoints(total)],['Ігри',played.length],['Перемоги',wins],['Середнє',played.length?formatPoints(total/played.length):'—']],boardLink+history));
     });
     if(!Object.values(model.tournaments).some(t=>t.game==='Мафія'))cards.push('<article class="club-tournament-card club-placeholder"><div class="club-card-kicker">Мафія</div><h3>Турніри Мафії</h3><p>Адміністратор ще не додав турнір. Тут буде твоя статистика, коли він з’явиться.</p></article>');
     if(!Object.values(model.tournaments).some(t=>t.game==='Root'))cards.push('<article class="club-tournament-card club-placeholder"><div class="club-card-kicker">Root</div><h3>Турніри Root</h3><p>Адміністратор ще не додав турнір. Бали різних ігор рахуються окремо.</p></article>');
@@ -146,6 +147,7 @@
       el('accountAdminButton').hidden=!model.admin;
     }
     renderAdmin();
+    window.clubLeaderboards?.render();
   }
   async function signInGoogle(){
     if(!model.ready)return message('Вхід поки недоступний. Онови сторінку.',true);
@@ -188,8 +190,25 @@
       const title=el('clubTournamentTitle').value.trim(),game=el('clubTournamentGame').value.trim(),unit=el('clubTournamentUnit').value.trim();
       if(!title||title.length>80||!game||game.length>40||!unit||unit.length>30)throw publicError('Перевір назву турніру, гру та одиницю балів.');
       await db.ref('club/tournaments/'+id).set({title,game,unit,archived:el('clubTournamentArchived').checked,updatedAt:Date.now()});
-      el('clubEditTournament').value=id;toast('Турнір збережено');
+      el('clubEditTournament').value=id;
+      await publishTournament(id);
+      toast('Турнір збережено');
     });
+  }
+  async function publishTournament(id){
+    requireOwner();if(!window.clubLeaderboards)return;
+    // Read complete, fresh private snapshots only as admin. Project a strict public allowlist.
+    const started=Date.now();
+    try{
+      const [tournament,results,profiles,links]=await Promise.all(['club/tournaments/'+id,'club/results','club/profiles','club/identityLinks'].map(path=>db.ref(path).once('value')));
+      const projected=await window.clubLeaderboards.buildProjection(id,tournament.val(),results.val(),profiles.val(),links.val(),playerChoices(),started);
+      requireOwner();
+      await db.ref('club/publicBoards/'+id).transaction(previous=>previous&&previous.updatedAt>started?undefined:projected);
+      el('clubPublishStatus').textContent='Публічний лідерборд оновлено.';
+    }catch(error){el('clubPublishStatus').textContent='Основні дані збережені, але публічний рейтинг не оновився. Натисни «Оновити публічні лідерборди», щоб повторити.';throw publicError(el('clubPublishStatus').textContent);}
+  }
+  async function publishAllBoards(){
+    return action(async()=>{requireOwner();el('clubPublishStatus').textContent='Оновлюємо публічні рейтинги…';const snapshot=await db.ref('club/tournaments').once('value');const ids=Object.entries(snapshot.val()||{}).filter(([,t])=>window.clubLeaderboards?.kindOf(t.game)).map(([id])=>id);for(const id of ids)await publishTournament(id);el('clubPublishStatus').textContent=ids.length?'Оновлено лідербордів: '+ids.length+'.':'Спочатку додай турнір Мафії або Root у формі нижче.';});
   }
   async function loadOtherResults(){
     const uid=el('clubResultUser').value,id=el('clubResultTournament').value,current=generation;
@@ -213,10 +232,11 @@
       if(!Number.isFinite(points)||(place!==null&&(!Number.isInteger(place)||place<1))||note.length>500)throw publicError('Перевір бали, місце та коментар (до 500 символів).');
       const ref=db.ref('club/results/'+uid+'/'+tournament),key=el('clubResultId').value||ref.push().key;
       await ref.child(key).set({date,round,points,place,won:!absent&&el('clubResultWon').checked,absent,note,updatedAt:Date.now()});
-      clearOtherResult();await loadOtherResults();toast('Результат турніру збережено');
+      clearOtherResult();await loadOtherResults();await publishTournament(tournament);toast('Результат турніру збережено');
     });
   }
   function bind(){
+    el('clubPublishBoards').addEventListener('click',publishAllBoards);
     el('accountCredentials').addEventListener('submit',submitCredentials);el('accountMode').addEventListener('change',setMode);el('accountGoogle').addEventListener('click',signInGoogle);
     el('accountReset').addEventListener('click',()=>action(async()=>{const email=el('accountLoginEmail').value.trim();if(!email)throw publicError('Введи email у поле вище.');await auth.sendPasswordResetEmail(email);message('Якщо акаунт існує, на його email надійде лист відновлення.');}));
     el('accountSignOut').addEventListener('click',()=>action(async()=>{await auth.signOut();el('accountPassword').value='';message('Ти вийшов з акаунта.');}));

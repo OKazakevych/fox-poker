@@ -399,7 +399,10 @@
         <section id="pokerRecovery" class="club-admin-box" hidden aria-labelledby="pokerRecoveryTitle">
           <h3 id="pokerRecoveryTitle">Збереження та резервна копія Poker</h3>
           <p id="pokerRecoveryText" role="status"></p>
-          <div class="actions"><button type="button" class="btn green" id="pokerRetry" onclick="retryPokerSave()">Повторити збереження</button><button type="button" class="btn secondary" onclick="exportPokerRecovery()">Завантажити резервну копію</button><button type="button" class="btn secondary" id="pokerUseServer" onclick="usePokerServer()">Показати серверні дані, залишити копію</button><button type="button" class="btn green" id="pokerRestoreMissing" onclick="restoreMissingPokerGames()">Повернути відсутні ігри з копії</button></div>
+          <p class="field-hint">Вибери експорт Poker у форматі JSON. Спочатку сайт покаже відсутні ігри; запис на сервер відбудеться лише після підтвердження. Наявні результати, профілі й призовий фонд не перезаписуються.</p>
+          <input id="pokerRecoveryFile" type="file" accept=".json,application/json" hidden onchange="loadPokerRecoveryFile(event)">
+          <div class="actions"><button type="button" class="btn secondary" id="pokerChooseRecovery" onclick="document.getElementById('pokerRecoveryFile').click()">Відкрити файл резервної копії</button><button type="button" class="btn secondary" onclick="exportData()">Завантажити поточні дані</button><button type="button" class="btn green" id="pokerRetry" onclick="retryPokerSave()">Повторити збереження</button><button type="button" class="btn secondary" id="pokerExportRecovery" onclick="exportPokerRecovery()">Завантажити резервну копію</button><button type="button" class="btn secondary" id="pokerUseServer" onclick="usePokerServer()">Показати серверні дані, залишити копію</button><button type="button" class="btn green" id="pokerRestoreMissing" onclick="restoreMissingPokerGames()">Повернути відсутні ігри з копії</button></div>
+          <p id="pokerRecoveryFileStatus" role="status" aria-live="polite"></p>
         </section>
         <details id="clubAdminPanel" hidden><summary class="club-admin-summary">Акаунти гравців та інші турніри клубу</summary>
           <div class="club-admin-box"><h3>Публічні лідерборди Мафії та Root</h3><p class="muted">Після збереження турніру або результату його лідерборд оновлюється автоматично. Публікуються нікнейм і результати ігор; email, ідентифікатори акаунтів та приватні коментарі не публікуються. Для вже внесених турнірів або після зміни нікнеймів натисни кнопку нижче.</p><button id="clubPublishBoards" type="button" class="btn secondary" data-account-submit>Оновити публічні лідерборди</button><p id="clubPublishStatus" role="status" aria-live="polite"></p></div>
@@ -601,13 +604,16 @@ function applyPokerSnapshot(data){appState=normalizedPoker(data);state=appState.
 function renderPokerRecovery(){
   const panel=document.getElementById('pokerRecovery');if(!panel)return;
   const copy=readPokerCopy(POKER_RECOVERY_KEY),missing=missingPokerGames(copy?.desired,appState);
-  panel.hidden=!window.clubAccounts?.canAdmin()||(!cloudPending&&!copy);
-  document.getElementById('pokerRecoveryText').textContent=cloudPending?'Є зміни, які ще НЕ підтверджено сервером. Чернетка збережена на цьому пристрої. Повтори запис або завантаж копію. Якщо дані на сервері змінилися, сайт не перезапише їх старою версією.':missing.length?'У локальній копії є відсутні ігри: '+missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'.':'Є локальна резервна копія. Її можна завантажити для перевірки.';
+  panel.hidden=!window.clubAccounts?.canAdmin();
+  document.getElementById('pokerRecoveryText').textContent=cloudPending?'Є зміни, які ще НЕ підтверджено сервером. Чернетка збережена на цьому пристрої. Повтори запис або завантаж копію. Якщо дані на сервері змінилися, сайт не перезапише їх старою версією.':missing.length?'У локальній копії є відсутні ігри: '+missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'.':copy?'У резервній копії немає ігор, відсутніх на сервері. Її можна завантажити для перевірки.':'Локальної резервної копії немає. Можна відкрити раніше збережений JSON-файл.';
+  document.getElementById('pokerChooseRecovery').disabled=!!cloudPending||cloudWriting||!cloudLoadedOnce;
+  document.getElementById('pokerExportRecovery').hidden=!cloudPending&&!copy;
   document.getElementById('pokerRetry').hidden=!cloudPending;
   document.getElementById('pokerRetry').disabled=cloudWriting;
   document.getElementById('pokerUseServer').hidden=!cloudPending;
   document.getElementById('pokerUseServer').disabled=cloudWriting;
   document.getElementById('pokerRestoreMissing').hidden=!!cloudPending||!missing.length;
+  document.getElementById('pokerRestoreMissing').disabled=cloudWriting||!cloudLoadedOnce;
 }
 function seasonNameForCopy(id){return SEASONS[id]?.label||id;}
 function exportPokerRecovery(){
@@ -619,12 +625,71 @@ function usePokerServer(){
   if(!keepPokerCopy(POKER_RECOVERY_KEY,cloudPending))return toast('Не вдалося зберегти копію. Спочатку завантаж її.');
   cloudPending=null;localStorage.removeItem(POKER_PENDING_KEY);applyPokerSnapshot(cloudBaseline);setSyncStatus('Показано серверні дані · чернетку залишено в резервній копії','ok');
 }
+function validatePokerRecovery(data){
+  if(data?.version!==2||!data.seasons||!Object.keys(data.seasons).length)throw new Error('Це не експорт сезонів Poker.');
+  for(const [seasonId,season] of Object.entries(data.seasons)){
+    if(!['season1','season2'].includes(seasonId)||!Array.isArray(season?.players)||!Array.isArray(season?.results))throw new Error('Некоректна структура сезону.');
+    const players=new Set(),records=new Set();
+    for(const p of season.players){if(!p||typeof p.id!=='string'||!p.id||typeof p.nickname!=='string'||!p.nickname.trim()||players.has(p.id))throw new Error('Некоректний або повторний гравець у файлі.');players.add(p.id);}
+    for(const r of season.results){
+      if(!r||typeof r.id!=='string'||!r.id||records.has(r.id)||!players.has(r.playerId)||typeof r.gameName!=='string'||!r.gameName.trim()||!Number.isFinite(r.points))throw new Error('Некоректний результат або відсутній профіль гравця.');
+      if(r.eliminations!=null&&(!Number.isInteger(r.eliminations)||r.eliminations<0))throw new Error('Некоректна кількість вибивань.');
+      if(r.absent!=null&&typeof r.absent!=='boolean')throw new Error('Некоректна відмітка відсутності.');
+      if(r.absent&&(r.points!==0||(r.eliminations||0)!==0))throw new Error('Відсутній гравець не може мати бали чи вибивання.');
+      records.add(r.id);
+    }
+  }
+  const source={version:2,seasons:Object.fromEntries(Object.entries(data.seasons).map(([id,season])=>[id,{...clone(season),settings:{...clone(season.settings||{}),gameSchedule:normalizeGameSchedule(season.settings?.gameSchedule)}}]))};
+  function checkKeys(value,depth=0){
+    if(depth>30)throw new Error('Надто складна структура файлу.');
+    if(!value||typeof value!=='object')return;
+    for(const [key,child] of Object.entries(value)){
+      if(!key||/[.#$\[\]/\u0000-\u001f\u007f]/.test(key)||['__proto__','constructor','prototype'].includes(key))throw new Error('Файл містить недопустимий ключ даних.');
+      checkKeys(child,depth+1);
+    }
+  }
+  checkKeys(source);return source;
+}
+function mergeMissingPokerGames(source,current){
+  const next=clone(current),missing=missingPokerGames(source,current);let recordCount=0,playerCount=0;
+  for(const {seasonId,name} of missing){
+    const target=next.seasons[seasonId],season=source.seasons[seasonId],records=season.results.filter(r=>r.gameName===name),seenPlayers=new Set();
+    for(const r of records){
+      if(target.results.some(v=>v.id===r.id)||seenPlayers.has(r.playerId))throw new Error('Конфлікт ідентифікаторів або повторний результат у грі '+name+'.');
+      seenPlayers.add(r.playerId);
+      if(!target.players.some(p=>p.id===r.playerId)){const p=season.players.find(p=>p.id===r.playerId);if(!p)throw new Error('Не знайдено гравця для '+name+'.');target.players.push(clone(p));playerCount++;}
+      target.results.push(clone(r));recordCount++;
+    }
+    const saved=gameDetails(name,season);target.settings.gameSchedule={...normalizeGameSchedule(target.settings.gameSchedule),[gameStorageKey(name)]:{...saved,name}};
+  }
+  return {next,missing,recordCount,playerCount};
+}
+async function loadPokerRecoveryFile(event){
+  const input=event.target,file=input.files?.[0],status=document.getElementById('pokerRecoveryFileStatus');if(!file)return;
+  try{
+    if(!window.clubAccounts?.canAdmin()||cloudPending||cloudWriting||!cloudLoadedOnce)throw new Error('Спочатку дочекайся синхронізації та заверши незбережені зміни.');
+    if(file.size>20*1024*1024)throw new Error('Файл завеликий (максимум 20 МБ).');
+    const desired=validatePokerRecovery(JSON.parse(await file.text()));
+    if(!window.clubAccounts?.canAdmin()||cloudPending||cloudWriting)throw new Error('Стан змінився. Відкрий файл повторно.');
+    const plan=mergeMissingPokerGames(desired,appState);
+    if(!plan.missing.length){status.textContent='У цьому файлі немає відсутніх ігор. Дані не змінено.';return;}
+    const prior=readPokerCopy(POKER_RECOVERY_KEY);
+    if(missingPokerGames(prior?.desired,appState).length&&!confirm('Замінити локальну резервну копію вибраним файлом? Серверні дані не зміняться.'))return;
+    if(!keepPokerCopy(POKER_RECOVERY_KEY,{desired,capturedAt:new Date().toISOString(),sourceName:file.name}))throw new Error('Не вдалося зберегти локальну копію. Залиши оригінальний файл.');
+    status.textContent=file.name+' · Відсутніх ігор: '+plan.missing.length+' · записів: '+plan.recordCount+' · нових гравців: '+plan.playerCount+'. Перевір перелік і натисни «Повернути відсутні ігри з копії». Сервер ще не змінено.';
+    renderPokerRecovery();
+  }catch(error){status.textContent='Файл не завантажено: '+error.message;}finally{input.value='';}
+}
 async function restoreMissingPokerGames(){
-  if(!window.clubAccounts?.canAdmin()||cloudPending)return;
-  const copy=readPokerCopy(POKER_RECOVERY_KEY),missing=missingPokerGames(copy?.desired,appState);if(!missing.length)return;
-  if(!confirm('Додати лише відсутні ігри з локальної копії: '+missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'? Наявні результати не зміняться.'))return;
-  for(const {seasonId,name} of missing){const target=appState.seasons[seasonId],source=copy.desired.seasons[seasonId],records=source.results.filter(r=>r.gameName===name);target.results.push(...clone(records));for(const r of records){if(!target.players.some(p=>p.id===r.playerId)){const p=source.players.find(p=>p.id===r.playerId);if(p)target.players.push(clone(p));}}const saved=gameDetails(name,source);target.settings.gameSchedule={...normalizeGameSchedule(target.settings.gameSchedule),[gameStorageKey(name)]:{...saved,name}};}
-  await saveState('Відсутні ігри відновлено');
+  if(!window.clubAccounts?.canAdmin()||cloudPending||cloudWriting||!cloudLoadedOnce)return;
+  try{
+    const copy=readPokerCopy(POKER_RECOVERY_KEY);if(!copy?.desired)return;
+    const plan=mergeMissingPokerGames(validatePokerRecovery(copy.desired),appState);if(!plan.missing.length)return;
+    if(!confirm('Додати лише відсутні ігри: '+plan.missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'. Записів: '+plan.recordCount+', нових гравців: '+plan.playerCount+'. Наявні результати, профілі й призовий фонд не зміняться.'))return;
+    appState=plan.next;state=appState.seasons[activeSeasonId];
+    const saved=await saveState('Відсутні ігри відновлено');
+    document.getElementById('pokerRecoveryFileStatus').textContent=saved?'Відновлено на сервері: '+plan.missing.length+' ігор, '+plan.recordCount+' записів.':'Запис ще не підтверджено сервером. Резервну копію збережено; перевір статус синхронізації.';
+  }catch(error){toast('Не вдалося відновити: '+error.message);}
 }
 function firebaseConfigReady(){
   return ONLINE_FIREBASE_CONFIG && ONLINE_FIREBASE_CONFIG.apiKey && !String(ONLINE_FIREBASE_CONFIG.apiKey).includes('PASTE_');

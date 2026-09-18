@@ -147,6 +147,7 @@
       el('accountAdminButton').hidden=!model.admin;
     }
     renderAdmin();
+    window.renderPokerRecovery?.();
     window.clubLeaderboards?.render();
   }
   async function signInGoogle(){

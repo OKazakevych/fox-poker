@@ -396,6 +396,11 @@
         <button class="btn green" onclick="loginAdmin()">Відкрити адмін-панель</button>
       </div>
       <div class="admin" id="adminBox">
+        <section id="pokerRecovery" class="club-admin-box" hidden aria-labelledby="pokerRecoveryTitle">
+          <h3 id="pokerRecoveryTitle">Збереження та резервна копія Poker</h3>
+          <p id="pokerRecoveryText" role="status"></p>
+          <div class="actions"><button type="button" class="btn green" id="pokerRetry" onclick="retryPokerSave()">Повторити збереження</button><button type="button" class="btn secondary" onclick="exportPokerRecovery()">Завантажити резервну копію</button><button type="button" class="btn secondary" id="pokerUseServer" onclick="usePokerServer()">Показати серверні дані, залишити копію</button><button type="button" class="btn green" id="pokerRestoreMissing" onclick="restoreMissingPokerGames()">Повернути відсутні ігри з копії</button></div>
+        </section>
         <details id="clubAdminPanel" hidden><summary class="club-admin-summary">Акаунти гравців та інші турніри клубу</summary>
           <div class="club-admin-box"><h3>Публічні лідерборди Мафії та Root</h3><p class="muted">Після збереження турніру або результату його лідерборд оновлюється автоматично. Публікуються нікнейм і результати ігор; email, ідентифікатори акаунтів та приватні коментарі не публікуються. Для вже внесених турнірів або після зміни нікнеймів натисни кнопку нижче.</p><button id="clubPublishBoards" type="button" class="btn secondary" data-account-submit>Оновити публічні лідерборди</button><p id="clubPublishStatus" role="status" aria-live="polite"></p></div>
           <div class="club-admin-box"><h3>Акаунти та прив’язка Poker</h3><p class="muted">Підтверджуй лише запит, у якому впевнений. Прив’язка відкриває історію гравця в його особистому профілі, але не дає права редагувати результати.</p><div id="clubRequestsList"></div><details><summary>Зареєстровані гравці</summary><div id="clubAccountList" class="club-members"></div></details></div>
@@ -575,6 +580,52 @@ let cloudRef = null;
 let cloudReady = false;
 let cloudApplying = false;
 let cloudLoadedOnce = false;
+let cloudBaseline = null, cloudPending = null, cloudWriting = false, cloudConnected = false;
+const POKER_PENDING_KEY = 'fox_poker_pending_write_v1';
+const POKER_RECOVERY_KEY = 'fox_poker_recovery_v1';
+function readPokerCopy(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
+function keepPokerCopy(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch(error){console.error('Poker backup unavailable',error);return false;}}
+function normalizedPoker(data){const next=applyAppMigrations(normalizeAppState(data));delete next.changed;return next;}
+// Firebase removes nulls and empty collections; compare equivalent wire values, not object insertion order.
+function pokerFingerprint(value){
+  function clean(v){if(v===null||v===undefined)return null;if(typeof v!=='object')return v;const result={};Object.keys(v).sort().forEach(k=>{const child=clean(v[k]);if(child!==null)result[k]=child;});return Object.keys(result).length?result:null;}
+  return JSON.stringify(clean(value));
+}
+function missingPokerGames(local,remote){
+  return Object.entries(local?.seasons||{}).flatMap(([seasonId,season])=>{
+    const known=new Set((remote?.seasons?.[seasonId]?.results||[]).map(r=>r.gameName));
+    return [...new Set((season.results||[]).map(r=>r.gameName))].filter(name=>!known.has(name)).map(name=>({seasonId,name}));
+  });
+}
+function applyPokerSnapshot(data){appState=normalizedPoker(data);state=appState.seasons[activeSeasonId]||appState.seasons.season2;keepPokerCopy(STORAGE_KEY,appState);render();renderPokerRecovery();}
+function renderPokerRecovery(){
+  const panel=document.getElementById('pokerRecovery');if(!panel)return;
+  const copy=readPokerCopy(POKER_RECOVERY_KEY),missing=missingPokerGames(copy?.desired,appState);
+  panel.hidden=!window.clubAccounts?.canAdmin()||(!cloudPending&&!copy);
+  document.getElementById('pokerRecoveryText').textContent=cloudPending?'Є зміни, які ще НЕ підтверджено сервером. Чернетка збережена на цьому пристрої. Повтори запис або завантаж копію. Якщо дані на сервері змінилися, сайт не перезапише їх старою версією.':missing.length?'У локальній копії є відсутні ігри: '+missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'.':'Є локальна резервна копія. Її можна завантажити для перевірки.';
+  document.getElementById('pokerRetry').hidden=!cloudPending;
+  document.getElementById('pokerRetry').disabled=cloudWriting;
+  document.getElementById('pokerUseServer').hidden=!cloudPending;
+  document.getElementById('pokerUseServer').disabled=cloudWriting;
+  document.getElementById('pokerRestoreMissing').hidden=!!cloudPending||!missing.length;
+}
+function seasonNameForCopy(id){return SEASONS[id]?.label||id;}
+function exportPokerRecovery(){
+  const copy=cloudPending||readPokerCopy(POKER_RECOVERY_KEY);if(!copy)return toast('Резервної копії немає');
+  const blob=new Blob([JSON.stringify(copy.desired,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='fox-poker-recovery-'+todayISO()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function usePokerServer(){
+  if(cloudWriting||!cloudPending||!window.clubAccounts?.canAdmin())return;
+  if(!keepPokerCopy(POKER_RECOVERY_KEY,cloudPending))return toast('Не вдалося зберегти копію. Спочатку завантаж її.');
+  cloudPending=null;localStorage.removeItem(POKER_PENDING_KEY);applyPokerSnapshot(cloudBaseline);setSyncStatus('Показано серверні дані · чернетку залишено в резервній копії','ok');
+}
+async function restoreMissingPokerGames(){
+  if(!window.clubAccounts?.canAdmin()||cloudPending)return;
+  const copy=readPokerCopy(POKER_RECOVERY_KEY),missing=missingPokerGames(copy?.desired,appState);if(!missing.length)return;
+  if(!confirm('Додати лише відсутні ігри з локальної копії: '+missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'? Наявні результати не зміняться.'))return;
+  for(const {seasonId,name} of missing){const target=appState.seasons[seasonId],source=copy.desired.seasons[seasonId],records=source.results.filter(r=>r.gameName===name);target.results.push(...clone(records));for(const r of records){if(!target.players.some(p=>p.id===r.playerId)){const p=source.players.find(p=>p.id===r.playerId);if(p)target.players.push(clone(p));}}const saved=gameDetails(name,source);target.settings.gameSchedule={...normalizeGameSchedule(target.settings.gameSchedule),[gameStorageKey(name)]:{...saved,name}};}
+  await saveState('Відсутні ігри відновлено');
+}
 function firebaseConfigReady(){
   return ONLINE_FIREBASE_CONFIG && ONLINE_FIREBASE_CONFIG.apiKey && !String(ONLINE_FIREBASE_CONFIG.apiKey).includes('PASTE_');
 }
@@ -585,6 +636,8 @@ function setSyncStatus(label, cls=''){
   el.className='sync-status '+cls;
 }
 function initCloudSync(){
+  cloudPending=readPokerCopy(POKER_PENDING_KEY);
+  if(cloudPending?.desired)applyPokerSnapshot(cloudPending.desired);else cloudPending=null;
   if(!firebaseConfigReady()){ setSyncStatus('Локальний режим · Firebase не підключено','local'); return; }
   if(!window.firebase){ setSyncStatus('Локальний режим · Firebase SDK не завантажився','error'); return; }
   try{
@@ -592,35 +645,23 @@ function initCloudSync(){
     cloudRef = firebase.database().ref(CLOUD_DB_PATH);
     cloudReady = true;
     setSyncStatus('Онлайн-синхронізація · підключення…','pending');
+    const startupCopy=clone(appState);
+    firebase.database().ref('.info/connected').on('value',snap=>{cloudConnected=snap.val()===true;if(cloudPending)setSyncStatus(cloudConnected?'Чернетка очікує підтвердження сервера':'Немає з’єднання · чернетку збережено на пристрої','pending');else if(!cloudConnected)setSyncStatus('Немає з’єднання · показано останню копію','pending');else if(cloudLoadedOnce)setSyncStatus('Онлайн · дані синхронізовано','ok');});
     cloudRef.on('value', snap=>{
       const remote=snap.val();
       const remoteHasData=remote && (remote.seasons || (Array.isArray(remote.players) && Array.isArray(remote.results)));
       if(remoteHasData){
-        // The server is authoritative. Never upload a viewer's cached state on page load.
-        cloudApplying = true;
-        const needsSeasonMigration=!remote.seasons || !remote.seasons.season2;
-        const migrated=applyAppMigrations(normalizeAppState(remote));
-        const migrationChanged = !!migrated.changed;
-        if(migrationChanged) delete migrated.changed;
-        appState=migrated;
-        state=appState.seasons[activeSeasonId]||appState.seasons.season2;
-        if(needsSeasonMigration) appState.seasons.season2.settings.updatedAt=new Date().toISOString();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-        syncSeasonInputs();
-        render();
-        cloudApplying = false;
+        // Never replace a pending draft, nor write migrations from a read callback.
+        const first=!cloudLoadedOnce;
+        cloudBaseline=normalizedPoker(remote);
+        if(first&&missingPokerGames(startupCopy,cloudBaseline).length)keepPokerCopy(POKER_RECOVERY_KEY,{desired:startupCopy,capturedAt:new Date().toISOString()});
         cloudLoadedOnce = true;
-        if((migrationChanged||needsSeasonMigration)&&window.clubAccounts?.canAdmin()){
-          setSyncStatus('Онлайн · сезони оновлюються…','pending');
-          cloudRef.set(appState).then(()=>setSyncStatus('Онлайн · сезони синхронізовано','ok')).catch(err=>{ console.error(err); setSyncStatus('Онлайн · помилка оновлення сезонів','error'); });
-        } else {
-          setSyncStatus('Онлайн · дані синхронізовано','ok');
-        }
+        if(cloudPending){renderPokerRecovery();return;}
+        cloudApplying=true;applyPokerSnapshot(cloudBaseline);if(first)syncSeasonInputs();cloudApplying=false;
+        setSyncStatus('Онлайн · дані синхронізовано','ok');
       } else if(!cloudLoadedOnce){
         cloudLoadedOnce = true;
-        if(window.clubAccounts?.canAdmin()){
-          cloudRef.set(appState).then(()=>setSyncStatus('Онлайн · створено базу турніру','ok')).catch(()=>setSyncStatus('Онлайн · базу не створено','error'));
-        }else setSyncStatus('Онлайн · база очікує адміністратора','pending');
+        cloudBaseline=null;setSyncStatus('Онлайн · база очікує адміністратора','pending');
       }
     }, err=>{
       console.error(err);
@@ -707,8 +748,14 @@ function createSeasonTwo(players){
     results:[]
   };
 }
+function gameStorageKey(name){return 'game_'+encodeURIComponent(String(name)).replace(/\./g,'%2E');}
+function normalizeGameSchedule(schedule){
+  return Object.fromEntries(Object.entries(schedule||{}).map(([key,value])=>{const name=value?.name||key;return [gameStorageKey(name),{...value,name}];}));
+}
 function normalizeSeasonState(s,fallback=DEFAULT_SEASON_ONE){
-  return {settings:{...fallback.settings,...(s?.settings||{}),migrations:{...(fallback.settings?.migrations||{}),...(s?.settings?.migrations||{})}},players:Array.isArray(s?.players)?s.players:clone(fallback.players||[]),results:Array.isArray(s?.results)?s.results:[]};
+  const settings={...fallback.settings,...(s?.settings||{}),migrations:{...(fallback.settings?.migrations||{}),...(s?.settings?.migrations||{})}};
+  if(settings.gameSchedule)settings.gameSchedule=normalizeGameSchedule(settings.gameSchedule);
+  return {settings,players:Array.isArray(s?.players)?s.players:clone(fallback.players||[]),results:Array.isArray(s?.results)?s.results:[]};
 }
 function normalizeAppState(s){
   if(s?.seasons){
@@ -817,7 +864,40 @@ function applyMigrations(s){
 
   return s;
 }
-function saveState(){ if(cloudReady&&!window.clubAccounts?.canAdmin()){ toast('Зміни не збережено: потрібен акаунт адміністратора'); return; } state.settings.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); render(); if(cloudReady && cloudRef && !cloudApplying){ setSyncStatus('Онлайн · збереження…','pending'); cloudRef.set(appState).then(()=>setSyncStatus('Онлайн · зміни збережено','ok')).catch(err=>{ console.error(err); setSyncStatus('Онлайн · помилка збереження','error'); }); } }
+async function saveState(successMessage='Зміни збережено на сервері'){
+  if(cloudReady&&!window.clubAccounts?.canAdmin()){toast('Зміни не збережено: потрібен акаунт адміністратора');return false;}
+  if(cloudReady&&cloudPending){toast('Спочатку повтори збереження попередньої чернетки');return false;}
+  state.settings.updatedAt=new Date().toISOString();
+  appState=normalizedPoker(appState);state=appState.seasons[activeSeasonId];
+  cloudPending={base:clone(cloudBaseline),desired:clone(appState),message:successMessage,capturedAt:new Date().toISOString()};
+  const protectedCopy=keepPokerCopy(POKER_PENDING_KEY,cloudPending);keepPokerCopy(STORAGE_KEY,appState);render();renderPokerRecovery();
+  if(!protectedCopy){setSyncStatus('Не вдалося зберегти чернетку · завантаж резервну копію','error');toast('Не закривай сторінку: завантаж резервну копію');return false;}
+  return retryPokerSave();
+}
+async function retryPokerSave(){
+  if(!cloudPending||cloudWriting)return false;
+  if(!cloudReady||!cloudRef||!cloudLoadedOnce){setSyncStatus('Чернетка лише на пристрої · сервер ще не підключено','error');toast('На сервері НЕ збережено. Чернетка залишилась на цьому пристрої.');return false;}
+  if(!window.clubAccounts?.canAdmin()){setSyncStatus('Чернетка не на сервері · увійди як адміністратор','error');toast('Для збереження увійди як адміністратор');return false;}
+  const pending=cloudPending;cloudWriting=true;renderPokerRecovery();setSyncStatus('Збереження… очікуємо підтвердження сервера','pending');
+  try{
+    const result=await cloudRef.transaction(current=>{
+      const remote=current?normalizedPoker(current):null;
+      // A stale tab cannot silently overwrite another device's newer results.
+      if(pokerFingerprint(remote)!==pokerFingerprint(pending.base))return;
+      return pending.desired;
+    },undefined,false);
+    if(!result.committed)throw Object.assign(new Error('Concurrent poker change'),{code:'POKER_CONFLICT'});
+    const confirmed=normalizedPoker(result.snapshot.val());
+    cloudBaseline=clone(confirmed);cloudPending=null;localStorage.removeItem(POKER_PENDING_KEY);
+    // Keep the last confirmed submission as a recoverable local copy too.
+    keepPokerCopy(POKER_RECOVERY_KEY,pending);applyPokerSnapshot(confirmed);
+    setSyncStatus('Онлайн · зміни збережено на сервері','ok');toast(pending.message);return true;
+  }catch(error){
+    console.error('Poker save failed:',error.code||error.message);
+    const message=error.code==='POKER_CONFLICT'?'Дані на сервері змінилися. Чернетку збережено; завантаж її або поверни серверну версію.':String(error.code||'').toLowerCase().includes('permission')?'Сервер не дозволив запис. Чернетка збережена; перевір вхід адміністратора.':'Запис на сервер НЕ виконано. Чернетка збережена; повтори спробу.';
+    setSyncStatus(message,'error');toast(message);return false;
+  }finally{cloudWriting=false;renderPokerRecovery();}
+}
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2200); }
 function avatarHTML(player, cls=''){ const initials=(player?.nickname||'?').trim().slice(0,2).toUpperCase(); const color=player?.color||'#f6c24f'; if(player?.avatar){return `<div class="avatar ${cls}" style="background:${color}"><img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.nickname)}" onerror="this.remove();this.parentElement.textContent='${escapeHtml(initials)}'"></div>`;} return `<div class="avatar ${cls}" style="background:${color}">${escapeHtml(initials)}</div>`; }
 function formatPoints(n){ const v=Number(n)||0; return Number.isInteger(v)?String(v):v.toFixed(1); }
@@ -881,7 +961,7 @@ function renderScoringRules(){
 function formatMoney(n){ const v=Math.max(0,Number(n)||0); return `${new Intl.NumberFormat('uk-UA',{maximumFractionDigits:2}).format(v)} ₴`; }
 // Game names remain stable storage keys; legacy “Гра 2.3” means day 2, game 3.
 function gameDetails(name,seasonState=state){
-  const saved=seasonState.settings.gameSchedule?.[name]||{};
+  const saved=seasonState.settings.gameSchedule?.[gameStorageKey(name)]||seasonState.settings.gameSchedule?.[name]||{};
   const match=/^Гра\s+(\d+)(?:\.(\d+))?$/i.exec(name||'');
   const day=Number(saved.day||match?.[1])||null;
   const number=Number(saved.number||match?.[2]||1);
@@ -889,13 +969,13 @@ function gameDetails(name,seasonState=state){
   return {name,day,number,date,key:day?'day-'+day:'game-'+name};
 }
 function gameOrder(seasonState=state){
-  const names=[...new Set([...seasonState.results.map(r=>r.gameName),...Object.keys(seasonState.settings.gameSchedule||{})])].filter(Boolean);
+  const names=[...new Set([...seasonState.results.map(r=>r.gameName),...Object.entries(seasonState.settings.gameSchedule||{}).map(([key,value])=>value.name||key)])].filter(Boolean);
   return names.sort((a,b)=>{const x=gameDetails(a,seasonState),y=gameDetails(b,seasonState); return (x.day||Infinity)-(y.day||Infinity)||x.number-y.number||x.date.localeCompare(y.date)||a.localeCompare(b,'uk',{numeric:true});});
 }
 function gameLabel(name){const g=gameDetails(name);return g.day?`День ${g.day} · Гра ${g.number}`:name;}
 function rememberGame(name,date){
   const g=gameDetails(name);
-  state.settings.gameSchedule={...state.settings.gameSchedule,[name]:{day:g.day,number:g.number,date:date||g.date}};
+  state.settings.gameSchedule={...normalizeGameSchedule(state.settings.gameSchedule),[gameStorageKey(name)]:{name,day:g.day,number:g.number,date:date||g.date}};
 }
 function entryIds(kind){return kind==='batch'?{name:'batchGameName',date:'batchDate'}:{name:'gameName',date:'resultDate'};}
 function renderGamePickers(){
@@ -1022,10 +1102,9 @@ function saveCellEditor(event){
   rememberGame(ctx.gameName,gameDetails(ctx.gameName).date);
   state.results=[...state.results.filter(r=>r.gameName!==ctx.gameName),...updated];
   const playerId=ctx.playerId,gameName=ctx.gameName;
-  hideCellEditor();saveState();
+  hideCellEditor();saveState('Результат оновлено на сервері');
   const button=[...document.querySelectorAll('.result-cell-button')].find(b=>b.dataset.player===playerId&&b.dataset.game===gameName);
   button?.focus({preventScroll:true});
-  toast('Результат оновлено');
 }
 function logoutAdmin(){
   isAdmin=false;hideCellEditor();
@@ -1178,16 +1257,16 @@ function updateBatchScoringPreview(){
 function loginAdmin(){ if(!window.clubAccounts?.canAdmin()){ location.hash='#account'; toast('Увійди у підтверджений акаунт адміністратора'); return; } isAdmin=true; document.getElementById('adminBox').classList.add('open'); document.getElementById('adminLock').style.display='none'; document.getElementById('adminStatus').textContent='відкрито · акаунт адміністратора'; renderLeaderboard(visibleRows(getStats().rows),gameOrder()); toast('Адмін-панель відкрита · натисни клітинку результату'); }
 function scrollToAdmin(){ document.getElementById('adminSection').scrollIntoView({behavior:'smooth',block:'start'}); }
 function switchTab(id,btn){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active')); btn.classList.add('active'); document.getElementById(id).classList.add('active'); }
-function addPlayer(e){ e.preventDefault(); const nickname=document.getElementById('playerNickname').value.trim(); if(!nickname) return; if(state.players.some(p=>p.nickname.toLowerCase()===nickname.toLowerCase())) return toast('Такий нікнейм уже є'); state.players.push({id:uid('player'),nickname,color:document.getElementById('playerColor').value,avatar:document.getElementById('playerAvatar').value.trim(),note:document.getElementById('playerNote').value.trim(),hidden:false,benefactor:false,seedRank:state.players.length+1,createdAt:new Date().toISOString()}); e.target.reset(); document.getElementById('playerColor').value='#f6c24f'; saveState(); toast('Гравця додано'); }
-function togglePlayerVisibility(id){ const p=state.players.find(x=>x.id===id); if(!p) return; p.hidden=!p.hidden; saveState(); toast(p.hidden?`${p.nickname} приховано`:`${p.nickname} повернено до таблиці`); }
-function toggleBenefactor(id){ const p=state.players.find(x=>x.id===id); if(!p||activeSeasonId!=='season2') return; p.benefactor=!p.benefactor; saveState(); toast(p.benefactor?`${p.nickname} отримує нагороду «Благодійник»`:`Нагороду «Благодійник» знято`); }
+function addPlayer(e){ e.preventDefault(); const nickname=document.getElementById('playerNickname').value.trim(); if(!nickname) return; if(state.players.some(p=>p.nickname.toLowerCase()===nickname.toLowerCase())) return toast('Такий нікнейм уже є'); state.players.push({id:uid('player'),nickname,color:document.getElementById('playerColor').value,avatar:document.getElementById('playerAvatar').value.trim(),note:document.getElementById('playerNote').value.trim(),hidden:false,benefactor:false,seedRank:state.players.length+1,createdAt:new Date().toISOString()}); e.target.reset(); document.getElementById('playerColor').value='#f6c24f'; saveState('Гравця додано'); }
+function togglePlayerVisibility(id){ const p=state.players.find(x=>x.id===id); if(!p) return; p.hidden=!p.hidden; saveState(p.hidden?`${p.nickname} приховано`:`${p.nickname} повернено до таблиці`); }
+function toggleBenefactor(id){ const p=state.players.find(x=>x.id===id); if(!p||activeSeasonId!=='season2') return; p.benefactor=!p.benefactor; saveState(p.benefactor?`${p.nickname} отримує нагороду «Благодійник»`:`Нагороду «Благодійник» знято`); }
 function editPlayer(id){ const p=state.players.find(x=>x.id===id); if(!p) return; document.getElementById('editPlayerId').value=p.id; document.getElementById('editPlayerNickname').value=p.nickname||''; document.getElementById('editPlayerColor').value=p.color||'#f6c24f'; document.getElementById('editPlayerNote').value=p.note||''; document.getElementById('editPlayerAvatar').value=''; document.getElementById('keepCurrentAvatar').checked=true; document.getElementById('editCurrentAvatar').innerHTML=avatarHTML(p); updateEditAvatarPreview(); toggleAvatarEditMode(); document.getElementById('editPlayerModal').classList.add('show'); }
 function updateEditAvatarPreview(){ const id=document.getElementById('editPlayerId')?.value; const p=state.players.find(x=>x.id===id); if(!p) return; const keep=document.getElementById('keepCurrentAvatar').checked; const avatar=keep ? p.avatar : document.getElementById('editPlayerAvatar').value.trim(); const temp={...p,nickname:document.getElementById('editPlayerNickname').value.trim()||p.nickname,color:document.getElementById('editPlayerColor').value||p.color,avatar}; document.getElementById('editAvatarPreview').innerHTML=avatarHTML(temp); }
 function toggleAvatarEditMode(){ const keep=document.getElementById('keepCurrentAvatar').checked; const field=document.getElementById('newAvatarField'); const input=document.getElementById('editPlayerAvatar'); input.disabled=keep; field.classList.toggle('avatar-input-disabled',keep); updateEditAvatarPreview(); }
-function saveEditedPlayer(e){ e.preventDefault(); const id=document.getElementById('editPlayerId').value; const p=state.players.find(x=>x.id===id); if(!p) return; const clean=document.getElementById('editPlayerNickname').value.trim(); if(!clean) return toast('Нікнейм не може бути порожнім'); if(state.players.some(x=>x.id!==id && x.nickname.toLowerCase()===clean.toLowerCase())) return toast('Такий нікнейм уже є'); p.nickname=clean; p.color=document.getElementById('editPlayerColor').value||p.color; p.note=document.getElementById('editPlayerNote').value.trim(); if(!document.getElementById('keepCurrentAvatar').checked){ p.avatar=document.getElementById('editPlayerAvatar').value.trim(); } hideEditPlayerModal(); saveState(); toast('Гравця оновлено'); }
+function saveEditedPlayer(e){ e.preventDefault(); const id=document.getElementById('editPlayerId').value; const p=state.players.find(x=>x.id===id); if(!p) return; const clean=document.getElementById('editPlayerNickname').value.trim(); if(!clean) return toast('Нікнейм не може бути порожнім'); if(state.players.some(x=>x.id!==id && x.nickname.toLowerCase()===clean.toLowerCase())) return toast('Такий нікнейм уже є'); p.nickname=clean; p.color=document.getElementById('editPlayerColor').value||p.color; p.note=document.getElementById('editPlayerNote').value.trim(); if(!document.getElementById('keepCurrentAvatar').checked){ p.avatar=document.getElementById('editPlayerAvatar').value.trim(); } hideEditPlayerModal(); saveState('Гравця оновлено'); }
 function hideEditPlayerModal(){ document.getElementById('editPlayerModal').classList.remove('show'); }
 function closeEditPlayerModal(e){ if(e.target.id==='editPlayerModal') hideEditPlayerModal(); }
-function deletePlayer(id){ const p=state.players.find(x=>x.id===id); if(!p) return; if(!confirm(`Видалити ${p.nickname} і всі його результати?`)) return; state.players=state.players.filter(x=>x.id!==id); state.results=state.results.filter(r=>r.playerId!==id); saveState(); toast('Гравця видалено'); }
+function deletePlayer(id){ const p=state.players.find(x=>x.id===id); if(!p) return; if(!confirm(`Видалити ${p.nickname} і всі його результати?`)) return; state.players=state.players.filter(x=>x.id!==id); state.results=state.results.filter(r=>r.playerId!==id); saveState('Гравця видалено'); }
 function toggleSingleAbsent(){
   const absent=document.getElementById('resultAbsent');
   const points=document.getElementById('resultPoints');
@@ -1268,8 +1347,7 @@ function addResult(e){
   document.getElementById('gameName').value=oldGame;
   document.getElementById('resultEliminations').value='0';
   toggleSingleAbsent();
-  saveState();
-  toast(absent?'Відсутність збережено':'Результат додано');
+  saveState(absent?'Відсутність збережено на сервері':'Результат додано на сервері');
 }
 function saveBatchGame(e){
   e.preventDefault();
@@ -1304,8 +1382,7 @@ function saveBatchGame(e){
     if(!scored.ok) return toast(scored.message);
     state.results=[...state.results.filter(result=>result.gameName!==gameName),...scored.entries];
     rememberGame(gameName,date);
-    saveState();
-    toast(scored.warning||`${gameName} збережено · ${scored.playerCount} учасників`);
+    saveState(scored.warning||`${gameName} збережено на сервері · ${scored.playerCount} учасників`);
     return;
   }else{
     for(const input of document.querySelectorAll('.batch-score')){
@@ -1318,8 +1395,7 @@ function saveBatchGame(e){
   const visibleIds=new Set(visiblePlayers().map(player=>player.id));
   state.results=[...state.results.filter(r=>r.gameName!==gameName||!visibleIds.has(r.playerId)),...entries];
   rememberGame(gameName,date);
-  saveState();
-  toast(`${gameName} збережено`);
+  saveState(`${gameName} збережено на сервері`);
 }
 function deleteResult(id){
   const target=state.results.find(result=>result.id===id);
@@ -1331,17 +1407,15 @@ function deleteResult(id){
     if(!scored.ok) return toast(`Не можна видалити: ${scored.message}`);
     if(!confirm('Видалити результат і перерахувати цю гру?')) return;
     state.results=[...otherGames,...scored.entries];
-    saveState();
-    toast(scored.warning||'Результат видалено, гру перераховано');
+    saveState(scored.warning||'Результат видалено, гру перераховано');
     return;
   }
   if(!confirm('Видалити результат?')) return;
   state.results=state.results.filter(result=>result.id!==id);
-  saveState();
-  toast('Результат видалено');
+  saveState('Результат видалено на сервері');
 }
-function savePrizeFund(e){ e.preventDefault(); if(activeSeasonId!=='season2') return; const total=Number(document.getElementById('fundAmountInput').value); const description=document.getElementById('fundDescriptionInput').value.trim(); if(!Number.isFinite(total)||total<0) return toast('Сума фонду має бути невід’ємним числом'); if(!description) return toast('Додай текст про призовий фонд'); state.settings.prizeFundTotal=total; state.settings.prizeFundDescription=description; saveState(); toast('Призовий фонд оновлено'); }
-function saveSettings(e){ e.preventDefault(); state.settings.title=document.getElementById('settingsTitle').value.trim()||'Poker Leaderboard'; state.settings.activeGame=document.getElementById('settingsActiveGame').value.trim()||''; saveState(); toast('Налаштування збережено'); }
+function savePrizeFund(e){ e.preventDefault(); if(activeSeasonId!=='season2') return; const total=Number(document.getElementById('fundAmountInput').value); const description=document.getElementById('fundDescriptionInput').value.trim(); if(!Number.isFinite(total)||total<0) return toast('Сума фонду має бути невід’ємним числом'); if(!description) return toast('Додай текст про призовий фонд'); state.settings.prizeFundTotal=total; state.settings.prizeFundDescription=description; saveState('Призовий фонд оновлено'); }
+function saveSettings(e){ e.preventDefault(); state.settings.title=document.getElementById('settingsTitle').value.trim()||'Poker Leaderboard'; state.settings.activeGame=document.getElementById('settingsActiveGame').value.trim()||''; saveState('Налаштування збережено'); }
 function renderActiveProfile(){
   const route=getProfileRoute();
   const modal=document.getElementById('profileModal');
@@ -1369,9 +1443,20 @@ function openProfile(playerId){ const href=profileHref(playerId); if(location.ha
 function hideProfile(clearRoute=true){ document.getElementById('profileModal').classList.remove('show'); if(clearRoute&&getProfileRoute()) history.replaceState(null,'',isFinalGameRoute()?'#season2/final':'#'+activeSeasonId); }
 function closeModal(e){ if(e.target.id==='profileModal') hideProfile(); }
 function exportData(){ const blob=new Blob([JSON.stringify(appState,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`poker-leaderboard-seasons-${todayISO()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); toast('Усі сезони експортовано'); }
-function importData(e){ const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ try{ const obj=JSON.parse(reader.result); if(!obj.seasons&&(!Array.isArray(obj.players)||!Array.isArray(obj.results))) throw new Error('bad'); const imported=applyAppMigrations(normalizeAppState(obj)); delete imported.changed; appState=imported; state=appState.seasons[activeSeasonId]||appState.seasons.season2; syncSeasonInputs(); saveState(); toast('Базу сезонів імпортовано'); }catch(err){ toast('Не вдалося імпортувати JSON'); } }; reader.readAsText(file); e.target.value=''; }
-function loadCurrentTable(){ if(!confirm(`Відновити початкові дані для «${seasonLabel()}»? Поточні зміни цього сезону будуть замінені.`)) return; appState.seasons[activeSeasonId]=activeSeasonId==='season2'?createSeasonTwo(appState.seasons.season1.players):clone(DEFAULT_SEASON_ONE); state=appState.seasons[activeSeasonId]; syncSeasonInputs(); saveState(); toast(`${seasonLabel()} відновлено`); }
-function resetAll(){ if(!confirm(`Повністю очистити «${seasonLabel()}»? Інший сезон не зміниться.`)) return; appState.seasons[activeSeasonId]={settings:{title:'Культова Лисиця · Poker Leaderboard',pin:state.settings.pin||'1234',activeGame:'Гра 1',updatedAt:null,migrations:{}},players:[],results:[]}; state=appState.seasons[activeSeasonId]; syncSeasonInputs(); saveState(); toast(`${seasonLabel()} очищено`); }
+function importData(e){ const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ try{ const obj=JSON.parse(reader.result); if(!obj.seasons&&(!Array.isArray(obj.players)||!Array.isArray(obj.results))) throw new Error('bad'); const imported=applyAppMigrations(normalizeAppState(obj)); delete imported.changed; appState=imported; state=appState.seasons[activeSeasonId]||appState.seasons.season2; syncSeasonInputs(); saveState('Базу сезонів імпортовано'); }catch(err){ toast('Не вдалося імпортувати JSON'); } }; reader.readAsText(file); e.target.value=''; }
+function loadCurrentTable(){ if(!confirm(`Відновити початкові дані для «${seasonLabel()}»? Поточні зміни цього сезону будуть замінені.`)) return; appState.seasons[activeSeasonId]=activeSeasonId==='season2'?createSeasonTwo(appState.seasons.season1.players):clone(DEFAULT_SEASON_ONE); state=appState.seasons[activeSeasonId]; syncSeasonInputs(); saveState(`${seasonLabel()} відновлено`); }
+function resetAll(){ if(!confirm(`Повністю очистити «${seasonLabel()}»? Інший сезон не зміниться.`)) return; appState.seasons[activeSeasonId]={settings:{title:'Культова Лисиця · Poker Leaderboard',pin:state.settings.pin||'1234',activeGame:'Гра 1',updatedAt:null,migrations:{}},players:[],results:[]}; state=appState.seasons[activeSeasonId]; syncSeasonInputs(); saveState(`${seasonLabel()} очищено`); }
+function blockPendingPokerEdit(event){
+  if(!cloudReady||!cloudPending)return;
+  const target=event.target;
+  if(target.closest?.('#pokerRecovery, #clubAdminPanel'))return;
+  const pokerForm=event.type==='submit'&&target.closest?.('#adminBox, #cellEditorModal, #editPlayerModal');
+  const button=target.closest?.('[onclick]'),mutation=button&&/^(?:deletePlayer|deleteResult|toggleBenefactor|togglePlayerVisibility|loadCurrentTable|resetAll)\(/.test(button.getAttribute('onclick')||'');
+  if(pokerForm||mutation){event.preventDefault();event.stopImmediatePropagation();toast('Є непідтверджена чернетка. Спочатку повтори збереження в адмін-панелі.');}
+}
+document.addEventListener('submit',blockPendingPokerEdit,true);
+document.addEventListener('click',blockPendingPokerEdit,true);
+window.addEventListener('beforeunload',event=>{if(cloudPending){event.preventDefault();event.returnValue='';}});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ hideProfile(); hideEditPlayerModal(); hideCellEditor(); }
   if(e.key==='Tab'&&cellEditContext){
@@ -1399,6 +1484,6 @@ render();
 initCloudSync();
 </script>
 <script src="club-leaderboards.js?v=1"></script>
-<script src="club-accounts.js?v=2"></script>
+<script src="club-accounts.js?v=3"></script>
 </body>
 </html>

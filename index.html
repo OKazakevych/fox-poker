@@ -584,6 +584,7 @@ let cloudReady = false;
 let cloudApplying = false;
 let cloudLoadedOnce = false;
 let cloudBaseline = null, cloudPending = null, cloudWriting = false, cloudConnected = false;
+let cloudWritePromise = null, cloudInFlight = null;
 const POKER_PENDING_KEY = 'fox_poker_pending_write_v1';
 const POKER_RECOVERY_KEY = 'fox_poker_recovery_v1';
 function readPokerCopy(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
@@ -594,18 +595,37 @@ function pokerFingerprint(value){
   function clean(v){if(v===null||v===undefined)return null;if(typeof v!=='object')return v;const result={};Object.keys(v).sort().forEach(k=>{const child=clean(v[k]);if(child!==null)result[k]=child;});return Object.keys(result).length?result:null;}
   return JSON.stringify(clean(value));
 }
+// A timestamp-only difference is not an unsaved edit. Keep IDs, scores and all other data in the comparison.
+function pokerDataEqual(left,right){
+  const content=data=>data?.seasons?{...data,seasons:Object.fromEntries(Object.entries(data.seasons).map(([id,season])=>{const {updatedAt,...settings}=season.settings||{};return [id,{...season,settings}];}))}:data;
+  return pokerFingerprint(content(left))===pokerFingerprint(content(right));
+}
+function clearConfirmedPokerDraft(pending){
+  // Another tab may have written its own draft into shared storage in the meantime.
+  const stored=readPokerCopy(POKER_PENDING_KEY);
+  if(stored&&pokerDataEqual(stored.desired,pending.desired))localStorage.removeItem(POKER_PENDING_KEY);
+}
+function reconcilePokerDraft(remote){
+  if(!cloudPending||cloudWriting)return;
+  if(pokerDataEqual(remote,cloudPending.desired)){
+    const confirmed=cloudPending;keepPokerCopy(POKER_RECOVERY_KEY,confirmed);clearConfirmedPokerDraft(confirmed);cloudPending=null;
+  }else if(cloudPending.sent&&pokerDataEqual(remote,cloudPending.sent)){
+    // The first queued write reached the server before this tab was closed. Retain its successor.
+    cloudPending.base=clone(remote);delete cloudPending.sent;keepPokerCopy(POKER_PENDING_KEY,cloudPending);
+  }
+}
 function missingPokerGames(local,remote){
   return Object.entries(local?.seasons||{}).flatMap(([seasonId,season])=>{
     const known=new Set((remote?.seasons?.[seasonId]?.results||[]).map(r=>r.gameName));
     return [...new Set((season.results||[]).map(r=>r.gameName))].filter(name=>!known.has(name)).map(name=>({seasonId,name}));
   });
 }
-function applyPokerSnapshot(data){appState=normalizedPoker(data);state=appState.seasons[activeSeasonId]||appState.seasons.season2;keepPokerCopy(STORAGE_KEY,appState);render();renderPokerRecovery();}
+function applyPokerSnapshot(data,preserveUnchangedForms=false){const next=normalizedPoker(data),unchanged=preserveUnchangedForms&&pokerDataEqual(appState,next);appState=next;state=appState.seasons[activeSeasonId]||appState.seasons.season2;keepPokerCopy(STORAGE_KEY,appState);if(!unchanged)render();renderPokerRecovery();}
 function renderPokerRecovery(){
   const panel=document.getElementById('pokerRecovery');if(!panel)return;
   const copy=readPokerCopy(POKER_RECOVERY_KEY),missing=missingPokerGames(copy?.desired,appState);
   panel.hidden=!window.clubAccounts?.canAdmin();
-  document.getElementById('pokerRecoveryText').textContent=cloudPending?'Є зміни, які ще НЕ підтверджено сервером. Чернетка збережена на цьому пристрої. Повтори запис або завантаж копію. Якщо дані на сервері змінилися, сайт не перезапише їх старою версією.':missing.length?'У локальній копії є відсутні ігри: '+missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'.':copy?'У резервній копії немає ігор, відсутніх на сервері. Її можна завантажити для перевірки.':'Локальної резервної копії немає. Можна відкрити раніше збережений JSON-файл.';
+  document.getElementById('pokerRecoveryText').textContent=cloudPending?(cloudWriting?'Зміни зберігаються у фоні. Можна продовжувати редагування — наступні зміни автоматично стануть у чергу.':'Є зміни, ще не підтверджені сервером. Копія збережена на цьому пристрої. Можна продовжувати редагування: наступне збереження надішле всі зміни разом. Або натисни «Повторити збереження».'):missing.length?'У локальній копії є відсутні ігри: '+missing.map(g=>seasonNameForCopy(g.seasonId)+' · '+g.name).join(', ')+'.':copy?'У резервній копії немає ігор, відсутніх на сервері. Її можна завантажити для перевірки.':'Локальної резервної копії немає. Можна відкрити раніше збережений JSON-файл.';
   document.getElementById('pokerChooseRecovery').disabled=!!cloudPending||cloudWriting||!cloudLoadedOnce;
   document.getElementById('pokerExportRecovery').hidden=!cloudPending&&!copy;
   document.getElementById('pokerRetry').hidden=!cloudPending;
@@ -721,8 +741,9 @@ function initCloudSync(){
         cloudBaseline=normalizedPoker(remote);
         if(first&&missingPokerGames(startupCopy,cloudBaseline).length)keepPokerCopy(POKER_RECOVERY_KEY,{desired:startupCopy,capturedAt:new Date().toISOString()});
         cloudLoadedOnce = true;
-        if(cloudPending){renderPokerRecovery();return;}
-        cloudApplying=true;applyPokerSnapshot(cloudBaseline);if(first)syncSeasonInputs();cloudApplying=false;
+        reconcilePokerDraft(cloudBaseline);
+        if(cloudPending){setSyncStatus(cloudWriting?'Збереження у фоні… очікуємо підтвердження сервера':'Є незбережені зміни · копія на цьому пристрої','pending');renderPokerRecovery();return;}
+        cloudApplying=true;applyPokerSnapshot(cloudBaseline,!first);if(first)syncSeasonInputs();cloudApplying=false;
         setSyncStatus('Онлайн · дані синхронізовано','ok');
       } else if(!cloudLoadedOnce){
         cloudLoadedOnce = true;
@@ -931,37 +952,64 @@ function applyMigrations(s){
 }
 async function saveState(successMessage='Зміни збережено на сервері'){
   if(cloudReady&&!window.clubAccounts?.canAdmin()){toast('Зміни не збережено: потрібен акаунт адміністратора');return false;}
-  if(cloudReady&&cloudPending){toast('Спочатку повтори збереження попередньої чернетки');return false;}
   state.settings.updatedAt=new Date().toISOString();
   appState=normalizedPoker(appState);state=appState.seasons[activeSeasonId];
-  cloudPending={base:clone(cloudBaseline),desired:clone(appState),message:successMessage,capturedAt:new Date().toISOString()};
+  const previous=cloudPending,sent=cloudInFlight?.desired||previous?.sent;
+  cloudPending={base:clone(previous?previous.base:cloudBaseline),desired:clone(appState),message:successMessage,capturedAt:new Date().toISOString(),...(sent?{sent:clone(sent)}:{})};
+  setSyncStatus(cloudWriting?'Збереження у фоні… наступні зміни у черзі':'Збереження… очікуємо підтвердження сервера','pending');
+  document.getElementById('toast').classList.remove('show');
   const protectedCopy=keepPokerCopy(POKER_PENDING_KEY,cloudPending);keepPokerCopy(STORAGE_KEY,appState);render();renderPokerRecovery();
   if(!protectedCopy){setSyncStatus('Не вдалося зберегти чернетку · завантаж резервну копію','error');toast('Не закривай сторінку: завантаж резервну копію');return false;}
   return retryPokerSave();
 }
-async function retryPokerSave(){
-  if(!cloudPending||cloudWriting)return false;
+function retryPokerSave(){
+  if(cloudWritePromise)return cloudWritePromise;
+  cloudWritePromise=flushPokerSaves().finally(()=>{cloudWritePromise=null;});return cloudWritePromise;
+}
+async function flushPokerSaves(){
+  if(!cloudPending)return true;
   if(!cloudReady||!cloudRef||!cloudLoadedOnce){setSyncStatus('Чернетка лише на пристрої · сервер ще не підключено','error');toast('На сервері НЕ збережено. Чернетка залишилась на цьому пристрої.');return false;}
   if(!window.clubAccounts?.canAdmin()){setSyncStatus('Чернетка не на сервері · увійди як адміністратор','error');toast('Для збереження увійди як адміністратор');return false;}
-  const pending=cloudPending;cloudWriting=true;renderPokerRecovery();setSyncStatus('Збереження… очікуємо підтвердження сервера','pending');
+  cloudWriting=true;renderPokerRecovery();setSyncStatus('Збереження… очікуємо підтвердження сервера','pending');
   try{
-    const result=await cloudRef.transaction(current=>{
-      const remote=current?normalizedPoker(current):null;
-      // A stale tab cannot silently overwrite another device's newer results.
-      if(pokerFingerprint(remote)!==pokerFingerprint(pending.base))return;
-      return pending.desired;
-    },undefined,false);
-    if(!result.committed)throw Object.assign(new Error('Concurrent poker change'),{code:'POKER_CONFLICT'});
-    const confirmed=normalizedPoker(result.snapshot.val());
-    cloudBaseline=clone(confirmed);cloudPending=null;localStorage.removeItem(POKER_PENDING_KEY);
-    // Keep the last confirmed submission as a recoverable local copy too.
-    keepPokerCopy(POKER_RECOVERY_KEY,pending);applyPokerSnapshot(confirmed);
-    setSyncStatus('Онлайн · зміни збережено на сервері','ok');toast(pending.message);return true;
+    while(cloudPending){
+      const pending=cloudPending;cloudInFlight=pending;
+      const result=await cloudRef.transaction(current=>{
+        const remote=current?normalizedPoker(current):null;
+        // Retrying an already-committed write is a no-op, not a permanent conflict.
+        if(pokerDataEqual(remote,pending.desired))return current;
+        if(!pokerDataEqual(remote,pending.base))return;
+        return pending.desired;
+      },undefined,false);
+      if(!result.committed)throw Object.assign(new Error('Concurrent poker change'),{code:'POKER_CONFLICT'});
+      const confirmed=normalizedPoker(result.snapshot.val());
+      // Do not roll back a newer server snapshot received before this callback.
+      if(pokerDataEqual(cloudBaseline,pending.base)||pokerDataEqual(cloudBaseline,confirmed))cloudBaseline=clone(confirmed);
+      keepPokerCopy(POKER_RECOVERY_KEY,pending);
+      if(cloudPending!==pending){
+        cloudPending.base=clone(confirmed);delete cloudPending.sent;
+        if(!keepPokerCopy(POKER_PENDING_KEY,cloudPending))throw new Error('Cannot protect queued Poker edits');
+        setSyncStatus('Збереження у фоні… наступні зміни у черзі','pending');
+        continue;
+      }
+      clearConfirmedPokerDraft(pending);cloudPending=null;
+      applyPokerSnapshot(cloudBaseline||confirmed,true);
+      setSyncStatus('Онлайн · зміни збережено на сервері','ok');toast(pending.message);
+    }
+    return true;
   }catch(error){
+    // A server read may confirm the write even if its acknowledgement callback failed.
+    if(cloudInFlight&&pokerDataEqual(cloudBaseline,cloudInFlight.desired)){
+      if(cloudPending===cloudInFlight){
+        const confirmed=cloudPending;keepPokerCopy(POKER_RECOVERY_KEY,confirmed);clearConfirmedPokerDraft(confirmed);cloudPending=null;
+        applyPokerSnapshot(cloudBaseline,true);setSyncStatus('Онлайн · зміни збережено на сервері','ok');toast(confirmed.message);return true;
+      }
+      cloudPending.base=clone(cloudBaseline);delete cloudPending.sent;keepPokerCopy(POKER_PENDING_KEY,cloudPending);
+    }
     console.error('Poker save failed:',error.code||error.message);
     const message=error.code==='POKER_CONFLICT'?'Дані на сервері змінилися. Чернетку збережено; завантаж її або поверни серверну версію.':String(error.code||'').toLowerCase().includes('permission')?'Сервер не дозволив запис. Чернетка збережена; перевір вхід адміністратора.':'Запис на сервер НЕ виконано. Чернетка збережена; повтори спробу.';
     setSyncStatus(message,'error');toast(message);return false;
-  }finally{cloudWriting=false;renderPokerRecovery();}
+  }finally{cloudWriting=false;cloudInFlight=null;renderPokerRecovery();}
 }
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2200); }
 function avatarHTML(player, cls=''){ const initials=(player?.nickname||'?').trim().slice(0,2).toUpperCase(); const color=player?.color||'#f6c24f'; if(player?.avatar){return `<div class="avatar ${cls}" style="background:${color}"><img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.nickname)}" onerror="this.remove();this.parentElement.textContent='${escapeHtml(initials)}'"></div>`;} return `<div class="avatar ${cls}" style="background:${color}">${escapeHtml(initials)}</div>`; }
@@ -1511,16 +1559,7 @@ function exportData(){ const blob=new Blob([JSON.stringify(appState,null,2)],{ty
 function importData(e){ const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ try{ const obj=JSON.parse(reader.result); if(!obj.seasons&&(!Array.isArray(obj.players)||!Array.isArray(obj.results))) throw new Error('bad'); const imported=applyAppMigrations(normalizeAppState(obj)); delete imported.changed; appState=imported; state=appState.seasons[activeSeasonId]||appState.seasons.season2; syncSeasonInputs(); saveState('Базу сезонів імпортовано'); }catch(err){ toast('Не вдалося імпортувати JSON'); } }; reader.readAsText(file); e.target.value=''; }
 function loadCurrentTable(){ if(!confirm(`Відновити початкові дані для «${seasonLabel()}»? Поточні зміни цього сезону будуть замінені.`)) return; appState.seasons[activeSeasonId]=activeSeasonId==='season2'?createSeasonTwo(appState.seasons.season1.players):clone(DEFAULT_SEASON_ONE); state=appState.seasons[activeSeasonId]; syncSeasonInputs(); saveState(`${seasonLabel()} відновлено`); }
 function resetAll(){ if(!confirm(`Повністю очистити «${seasonLabel()}»? Інший сезон не зміниться.`)) return; appState.seasons[activeSeasonId]={settings:{title:'Культова Лисиця · Poker Leaderboard',pin:state.settings.pin||'1234',activeGame:'Гра 1',updatedAt:null,migrations:{}},players:[],results:[]}; state=appState.seasons[activeSeasonId]; syncSeasonInputs(); saveState(`${seasonLabel()} очищено`); }
-function blockPendingPokerEdit(event){
-  if(!cloudReady||!cloudPending)return;
-  const target=event.target;
-  if(target.closest?.('#pokerRecovery, #clubAdminPanel'))return;
-  const pokerForm=event.type==='submit'&&target.closest?.('#adminBox, #cellEditorModal, #editPlayerModal');
-  const button=target.closest?.('[onclick]'),mutation=button&&/^(?:deletePlayer|deleteResult|toggleBenefactor|togglePlayerVisibility|loadCurrentTable|resetAll)\(/.test(button.getAttribute('onclick')||'');
-  if(pokerForm||mutation){event.preventDefault();event.stopImmediatePropagation();toast('Є непідтверджена чернетка. Спочатку повтори збереження в адмін-панелі.');}
-}
-document.addEventListener('submit',blockPendingPokerEdit,true);
-document.addEventListener('click',blockPendingPokerEdit,true);
+// Edits stay available during slow/failed writes; saveState queues the latest complete draft.
 window.addEventListener('beforeunload',event=>{if(cloudPending){event.preventDefault();event.returnValue='';}});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ hideProfile(); hideEditPlayerModal(); hideCellEditor(); }

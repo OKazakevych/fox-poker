@@ -589,7 +589,9 @@ const POKER_PENDING_KEY = 'fox_poker_pending_write_v1';
 const POKER_RECOVERY_KEY = 'fox_poker_recovery_v1';
 function readPokerCopy(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
 function keepPokerCopy(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch(error){console.error('Poker backup unavailable',error);return false;}}
-function normalizedPoker(data){const next=applyAppMigrations(normalizeAppState(data));delete next.changed;return next;}
+// Keep editable players/results separate from the confirmed server snapshot.
+// In-place edits must never change the transaction baseline or count as a server acknowledgement.
+function normalizedPoker(data){const next=applyAppMigrations(normalizeAppState(data==null?data:clone(data)));delete next.changed;return next;}
 // Firebase removes nulls and empty collections; compare equivalent wire values, not object insertion order.
 function pokerFingerprint(value){
   function clean(v){if(v===null||v===undefined)return null;if(typeof v!=='object')return v;const result={};Object.keys(v).sort().forEach(k=>{const child=clean(v[k]);if(child!==null)result[k]=child;});return Object.keys(result).length?result:null;}

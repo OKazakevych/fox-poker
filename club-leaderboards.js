@@ -52,7 +52,7 @@
     if(!active)return;
     ['leaderboardPage','finalGamePage','prizeFundSection','accountPage'].forEach(id=>el(id).hidden=true);
     ['leaderboardPageLink','finalPageLink','accountPageLink'].forEach(id=>el(id).setAttribute('aria-current','false'));
-    const theme=themes[current.kind];el('pageTitle').textContent=theme.name+' · Leaderboard';el('pageTitle').classList.remove('final-page-heading');document.title=theme.name+' · Лідерборд · Fox Club';
+    const theme=themes[current.kind];el('pageTitle').textContent=theme.name+' · Рейтинг';el('pageTitle').classList.remove('final-page-heading');document.title=theme.name+' · Лідерборд · Fox Club';
     el('clubBoardEyebrow').textContent=theme.eyebrow;el('clubBoardLead').textContent=theme.lead;
     el('clubBoardAdmin').hidden=!window.clubAccounts?.canAdmin();
     if(model.lastKind!==current.kind){el('clubBoardSearch').value='';model.lastKind=current.kind;}
